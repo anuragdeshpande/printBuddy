@@ -3990,6 +3990,24 @@ export const api = {
   // Settings
   getSettings: () => request<AppSettings>('/settings/'),
   getDefaultSidebarOrder: () => request<{ default_sidebar_order: string }>('/settings/default-sidebar-order'),
+  // Public subset of settings for UI rendering — no settings:read required.
+  // Used by pages whose users may not have SETTINGS_READ (e.g. operators with
+  // only printers:clear_plate). Keep in sync with _UI_PREFERENCE_FIELDS in
+  // backend/app/api/routes/settings.py.
+  getUiPreferences: () =>
+    request<{
+      require_plate_clear?: boolean;
+      check_printer_firmware?: boolean;
+      camera_view_mode?: 'window' | 'embedded';
+      time_format?: 'system' | '12h' | '24h';
+      date_format?: string;
+      drying_presets?: string;
+      ams_humidity_good?: number;
+      ams_humidity_fair?: number;
+      ams_temp_good?: number;
+      ams_temp_fair?: number;
+      bed_cooled_threshold?: number;
+    }>('/settings/ui-preferences'),
   updateSettings: (data: AppSettingsUpdate) =>
     request<AppSettings>('/settings/', {
       method: 'PUT',
