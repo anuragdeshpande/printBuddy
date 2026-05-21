@@ -27,7 +27,16 @@ export interface PlateMetadata {
   filaments: PlateFilament[];
 }
 
-export interface ArchivePlatesResponse {
+// Printer / process preset names the source 3MF was prepared with, read from
+// its project_settings.config. Used by the SliceModal to default its printer
+// and process dropdowns (#1325). Null / absent when the file carries no
+// embedded slicer config (STL, plain model 3MF, parse failure).
+interface EmbeddedPresets {
+  embedded_printer?: string | null;
+  embedded_process?: string | null;
+}
+
+export interface ArchivePlatesResponse extends EmbeddedPresets {
   archive_id: number;
   filename: string;
   plates: PlateMetadata[];
@@ -35,7 +44,7 @@ export interface ArchivePlatesResponse {
   has_gcode?: boolean;
 }
 
-export interface LibraryFilePlatesResponse {
+export interface LibraryFilePlatesResponse extends EmbeddedPresets {
   file_id: number;
   filename: string;
   plates: PlateMetadata[];

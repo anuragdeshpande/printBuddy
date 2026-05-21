@@ -63,15 +63,40 @@ function findPreset(
   return by[ref.source][slot].find((p) => p.id === ref.id) ?? null;
 }
 
-// Process default (#1325): first preset compatible with the selected printer
-// in tier order, then the first whose compatibility is merely unknown, then
-// plain priority. Keeps the pre-pick honest with the printer filter instead
-// of blindly taking list[0].
+// Find a preset by exact name across tiers (local → cloud → standard). Used
+// to honour the printer / process preset names a 3MF was prepared with.
+function findPresetByName(
+  by: UnifiedPresetsResponse,
+  slot: Slot,
+  name: string | null | undefined,
+): PresetRef | null {
+  if (!name) return null;
+  for (const tier of SLICE_MODAL_TIER_ORDER) {
+    const p = by[tier][slot].find((x) => x.name === name);
+    if (p) return { source: p.source, id: p.id };
+  }
+  return null;
+}
+
+// Process default: honour the process preset the 3MF was prepared with
+// (preferredName) when it's available and not incompatible with the selected
+// printer; otherwise the first preset compatible with the printer in tier
+// order, then the first whose compatibility is merely unknown, then plain
+// priority. Keeps the pre-pick honest with both the embedded config and the
+// printer filter instead of blindly taking list[0] (#1325).
 function pickProcessDefault(
   by: UnifiedPresetsResponse,
   printerName: string | null,
   printerCode: string | null,
+  preferredName?: string | null,
 ): PresetRef | null {
+  const preferred = findPresetByName(by, 'process', preferredName);
+  if (preferred) {
+    const p = findPreset(by, preferred, 'process');
+    if (p && presetCompatibility(p, printerName, printerCode) !== 'mismatch') {
+      return preferred;
+    }
+  }
   for (const wanted of ['match', 'unknown'] as const) {
     for (const tier of SLICE_MODAL_TIER_ORDER) {
       for (const p of by[tier].process) {
@@ -409,13 +434,25 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
     [selectedPrinterName],
   );
 
-  // Printer pre-pick: see SLICE_MODAL_TIER_ORDER. Runs once when presets
-  // first arrive; subsequent re-renders preserve any manual choice.
+  // Printer / process preset names the source 3MF was prepared with. The
+  // plates query resolves before the presets query (the latter is gated on
+  // it), so these are known by the time the pre-pick effects run.
+  const embeddedPrinter = platesQuery.data?.embedded_printer ?? null;
+  const embeddedProcess = platesQuery.data?.embedded_process ?? null;
+
+  // Printer pre-pick: defaults to the printer the 3MF was prepared for when
+  // that preset is available, else the first listed printer. Runs once when
+  // presets first arrive; later re-renders preserve any manual choice.
   useEffect(() => {
-    if (!presetsQuery.data) return;
-    if (printerPreset == null) setPrinterPreset(pickDefault(presetsQuery.data, 'printer'));
+    const data = presetsQuery.data;
+    if (!data) return;
+    if (printerPreset == null) {
+      setPrinterPreset(
+        findPresetByName(data, 'printer', embeddedPrinter) ?? pickDefault(data, 'printer'),
+      );
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [presetsQuery.data]);
+  }, [presetsQuery.data, embeddedPrinter]);
 
   // Process pre-pick / re-pick (#1325): defaults to a process compatible with
   // the selected printer, and re-defaults when a printer change leaves the
@@ -430,9 +467,9 @@ export function SliceModal({ source, onClose }: SliceModalProps) {
           return current;
         }
       }
-      return pickProcessDefault(data, selectedPrinterName, selectedPrinterCode);
+      return pickProcessDefault(data, selectedPrinterName, selectedPrinterCode, embeddedProcess);
     });
-  }, [presetsQuery.data, selectedPrinterName, selectedPrinterCode]);
+  }, [presetsQuery.data, selectedPrinterName, selectedPrinterCode, embeddedProcess]);
 
   // Filament pre-pick: re-runs when the active filament-slot count changes
   // (plate selection, single-plate metadata arriving) or the selected printer
