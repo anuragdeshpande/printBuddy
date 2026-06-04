@@ -5508,6 +5508,8 @@ export default {
   diagnostic: {
     modalTitle: 'Diagnostica connessione — {{name}}',
     running: 'Diagnostica in corso...',
+    runningElapsed: 'Diagnostica in corso... ({{elapsed}}s)',
+    waitingForReportHint: 'In attesa che la stampante pubblichi un report di stato — può richiedere fino a {{max}} secondi.',
     runFailed: 'Impossibile eseguire la diagnostica: {{error}}',
     retry: 'Esegui di nuovo',
     runButton: 'Esegui diagnostica',
@@ -5557,6 +5559,12 @@ export default {
         title: 'Modalità sviluppatore LAN',
         pass: 'La modalità sviluppatore è attivata.',
         fail: 'La modalità sviluppatore è DISATTIVATA sulla stampante. Attivala nelle impostazioni LAN della stampante — e conferma con OK. Senza di essa le stampe non verranno avviate.',
+        skip: 'Impossibile verificare — richiede una connessione attiva alla stampante.',
+      },
+      printer_publishing: {
+        title: 'La stampante pubblica lo stato',
+        pass: 'La stampante sta pubblicando aggiornamenti di stato — AMS, filamenti e profili K saranno correttamente replicati nello slicer.',
+        fail: 'Il broker MQTT ha accettato la connessione ma la stampante non ha pubblicato alcun report di stato. È quasi sempre un numero di serie errato o con maiuscole/minuscole sbagliate — il topic device/<serial>/report distingue tra maiuscole e minuscole. Confronta il numero di serie nelle impostazioni della stampante con quello mostrato sullo schermo del dispositivo.',
         skip: 'Impossibile verificare — richiede una connessione attiva alla stampante.',
       },
     },

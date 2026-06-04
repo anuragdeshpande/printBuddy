@@ -5507,6 +5507,8 @@ export default {
   diagnostic: {
     modalTitle: '連線診斷 — {{name}}',
     running: '正在執行診斷...',
+    runningElapsed: '正在執行診斷... ({{elapsed}}秒)',
+    waitingForReportHint: '正在等待印表機發佈狀態報告 — 最長可能需要 {{max}} 秒。',
     runFailed: '無法執行診斷：{{error}}',
     retry: '重新執行',
     runButton: '執行診斷',
@@ -5556,6 +5558,12 @@ export default {
         title: 'LAN 開發者模式',
         pass: '開發者模式已啟用。',
         fail: '印表機上的開發者模式已關閉。請在印表機的 LAN 設定中啟用它 — 並按 OK 確認。否則列印將無法開始。',
+        skip: '無法檢查 — 需要與印表機的即時連線。',
+      },
+      printer_publishing: {
+        title: '印表機正在發佈狀態',
+        pass: '印表機正在發佈狀態更新 — AMS、耗材和 K 配置將正確鏡像到切片軟體。',
+        fail: 'MQTT 代理已接受連線，但印表機未發佈任何狀態報告。這幾乎總是因為序號錯誤或大小寫不一致 — device/<serial>/report 主題區分大小寫。請將印表機設定中的序號與印表機螢幕上的顯示進行核對。',
         skip: '無法檢查 — 需要與印表機的即時連線。',
       },
     },

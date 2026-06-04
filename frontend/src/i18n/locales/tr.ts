@@ -5458,6 +5458,8 @@ export default {
   diagnostic: {
     modalTitle: 'Bağlantı tanılaması — {{name}}',
     running: 'Tanılama çalışıyor...',
+    runningElapsed: 'Tanılama çalışıyor... ({{elapsed}}s)',
+    waitingForReportHint: 'Yazıcının durum raporu yayınlamasını bekliyor — bu işlem en fazla {{max}} saniye sürebilir.',
     runFailed: 'Tanılama çalıştırılamadı: {{error}}',
     retry: 'Tekrar çalıştır',
     runButton: 'Tanılamayı çalıştır',
@@ -5507,6 +5509,12 @@ export default {
         title: 'LAN Geliştirici Modu',
         pass: 'Geliştirici Modu etkin.',
         fail: 'Yazıcıda Geliştirici Modu KAPALI. Yazıcının LAN ayarlarında etkinleştirin — ve OK ile onaylayın. Bu olmadan baskılar başlamayacak.',
+        skip: 'Kontrol edilemedi — yazıcıya canlı bir bağlantı gerektirir.',
+      },
+      printer_publishing: {
+        title: 'Yazıcı durum yayını yapıyor',
+        pass: 'Yazıcı durum güncellemelerini yayınlıyor — AMS, filamentler ve K profilleri dilimleyiciye doğru şekilde yansıtılacak.',
+        fail: 'MQTT aracısı bağlantıyı kabul etti, ancak yazıcı hiç durum raporu yayınlamadı. Bu neredeyse her zaman yanlış ya da büyük/küçük harf hatalı bir seri numarasından kaynaklanır — device/<serial>/report konusu büyük/küçük harfe duyarlıdır. Yazıcı ayarlarındaki seri numarasını cihazın ekranındaki ile karşılaştırarak doğrulayın.',
         skip: 'Kontrol edilemedi — yazıcıya canlı bir bağlantı gerektirir.',
       },
     },

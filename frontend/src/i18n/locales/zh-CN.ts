@@ -5507,6 +5507,8 @@ export default {
   diagnostic: {
     modalTitle: '连接诊断 — {{name}}',
     running: '正在运行诊断...',
+    runningElapsed: '正在运行诊断... ({{elapsed}}秒)',
+    waitingForReportHint: '正在等待打印机发布状态报告 — 最长可能需要 {{max}} 秒。',
     runFailed: '无法运行诊断：{{error}}',
     retry: '重新运行',
     runButton: '运行诊断',
@@ -5556,6 +5558,12 @@ export default {
         title: 'LAN 开发者模式',
         pass: '开发者模式已启用。',
         fail: '打印机上的开发者模式已关闭。请在打印机的 LAN 设置中启用它 — 并按 OK 确认。否则打印将无法开始。',
+        skip: '无法检查 — 需要与打印机的实时连接。',
+      },
+      printer_publishing: {
+        title: '打印机正在发布状态',
+        pass: '打印机正在发布状态更新 — AMS、耗材和 K 配置将正确镜像到切片软件。',
+        fail: 'MQTT 代理已接受连接，但打印机未发布任何状态报告。这几乎总是因为序列号错误或大小写不一致 — device/<serial>/report 主题区分大小写。请将打印机设置中的序列号与打印机屏幕上的显示进行核对。',
         skip: '无法检查 — 需要与打印机的实时连接。',
       },
     },

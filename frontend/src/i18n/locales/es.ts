@@ -5528,6 +5528,8 @@ export default {
   diagnostic: {
     modalTitle: 'Diagnóstico de conexión — {{name}}',
     running: 'Ejecutando el diagnóstico...',
+    runningElapsed: 'Ejecutando el diagnóstico... ({{elapsed}}s)',
+    waitingForReportHint: 'Esperando a que la impresora publique un informe de estado — puede tardar hasta {{max}} segundos.',
     runFailed: 'No se pudo ejecutar el diagnóstico: {{error}}',
     retry: 'Ejecutar de nuevo',
     runButton: 'Ejecutar diagnóstico',
@@ -5577,6 +5579,12 @@ export default {
         title: 'Modo desarrollador LAN',
         pass: 'El modo desarrollador está activado.',
         fail: 'El modo desarrollador está DESACTIVADO en la impresora. Actívelo en los ajustes de LAN de la impresora — y confirme con Aceptar. Sin él, las impresiones no comenzarán.',
+        skip: 'No se pudo comprobar — requiere una conexión activa con la impresora.',
+      },
+      printer_publishing: {
+        title: 'La impresora publica estado',
+        pass: 'La impresora está publicando actualizaciones de estado — AMS, filamentos y perfiles K se reflejarán correctamente en el slicer.',
+        fail: 'El broker MQTT aceptó la conexión, pero la impresora no ha publicado ningún informe de estado. Casi siempre se trata de un número de serie incorrecto o con mayúsculas/minúsculas mal escritas — el topic device/<serial>/report distingue entre mayúsculas y minúsculas. Revise el número de serie en los ajustes de la impresora comparándolo con la pantalla del aparato.',
         skip: 'No se pudo comprobar — requiere una conexión activa con la impresora.',
       },
     },

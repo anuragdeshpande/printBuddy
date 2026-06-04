@@ -5532,6 +5532,8 @@ export default {
   diagnostic: {
     modalTitle: 'Connection diagnostic — {{name}}',
     running: 'Running diagnostic...',
+    runningElapsed: 'Running diagnostic... ({{elapsed}}s)',
+    waitingForReportHint: 'Listening for the printer to publish a status report — this can take up to {{max}} seconds.',
     runFailed: 'Diagnostic could not run: {{error}}',
     retry: 'Run again',
     runButton: 'Run diagnostic',
@@ -5581,6 +5583,12 @@ export default {
         title: 'LAN Developer Mode',
         pass: 'Developer Mode is enabled.',
         fail: 'Developer Mode is OFF on the printer. Enable it in the printer\'s LAN settings — and confirm with OK. Without it, prints will not start.',
+        skip: 'Could not be checked — requires a live connection to the printer.',
+      },
+      printer_publishing: {
+        title: 'Printer is publishing status',
+        pass: 'The printer is publishing status updates — AMS, filaments, and K-profiles will mirror correctly to the slicer.',
+        fail: 'The MQTT broker accepted the connection but the printer has not published any status reports. This is almost always a wrong or mis-cased serial number — the device/<serial>/report topic is case-sensitive. Re-check the serial in printer settings against the screen on the printer.',
         skip: 'Could not be checked — requires a live connection to the printer.',
       },
     },

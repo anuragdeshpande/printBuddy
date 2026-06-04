@@ -5519,6 +5519,8 @@ export default {
   diagnostic: {
     modalTitle: 'Verbindungsdiagnose — {{name}}',
     running: 'Diagnose läuft...',
+    runningElapsed: 'Diagnose läuft... ({{elapsed}}s)',
+    waitingForReportHint: 'Warten darauf, dass der Drucker einen Statusbericht sendet — kann bis zu {{max}} Sekunden dauern.',
     runFailed: 'Diagnose konnte nicht ausgeführt werden: {{error}}',
     retry: 'Erneut ausführen',
     runButton: 'Diagnose ausführen',
@@ -5568,6 +5570,12 @@ export default {
         title: 'LAN-Entwicklermodus',
         pass: 'Der Entwicklermodus ist aktiviert.',
         fail: 'Der Entwicklermodus ist am Drucker AUS. Aktivieren Sie ihn in den LAN-Einstellungen des Druckers — und bestätigen Sie mit OK. Ohne ihn starten Drucke nicht.',
+        skip: 'Konnte nicht geprüft werden — erfordert eine aktive Verbindung zum Drucker.',
+      },
+      printer_publishing: {
+        title: 'Drucker sendet Statusmeldungen',
+        pass: 'Der Drucker sendet Statusmeldungen — AMS, Filamente und K-Profile werden korrekt zum Slicer gespiegelt.',
+        fail: 'Der MQTT-Broker hat die Verbindung akzeptiert, der Drucker sendet aber keine Statusmeldungen. Fast immer liegt eine falsche oder falsch geschriebene Seriennummer vor — das Topic device/<serial>/report unterscheidet Groß- und Kleinschreibung. Prüfen Sie die Seriennummer in den Druckereinstellungen gegen die Anzeige am Drucker.',
         skip: 'Konnte nicht geprüft werden — erfordert eine aktive Verbindung zum Drucker.',
       },
     },

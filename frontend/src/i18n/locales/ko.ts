@@ -5569,6 +5569,8 @@ export default {
   diagnostic: {
     modalTitle: '연결 진단 — {{name}}',
     running: '진단 실행 중...',
+    runningElapsed: '진단 실행 중... ({{elapsed}}초)',
+    waitingForReportHint: '프린터가 상태 보고를 게시하기를 기다리는 중 — 최대 {{max}}초 걸릴 수 있습니다.',
     runFailed: '진단 실행 실패: {{error}}',
     retry: '다시 실행',
     runButton: '진단 실행',
@@ -5618,6 +5620,12 @@ export default {
         title: 'LAN 개발자 모드',
         pass: '개발자 모드가 활성화되어 있습니다.',
         fail: '프린터에서 개발자 모드가 꺼져 있습니다. 프린터의 LAN 설정에서 활성화하고 확인을 누르세요. 이 없으면 인쇄가 시작되지 않습니다.',
+        skip: '확인할 수 없음 — 프린터에 연결되어 있어야 합니다.'
+      },
+      printer_publishing: {
+        title: '프린터가 상태를 게시 중',
+        pass: '프린터가 상태 업데이트를 게시하고 있습니다 — AMS, 필라멘트, K-프로파일이 슬라이서에 올바르게 반영됩니다.',
+        fail: 'MQTT 브로커는 연결을 수락했지만 프린터가 상태 보고를 게시하지 않았습니다. 거의 항상 시리얼 번호가 잘못되었거나 대소문자가 일치하지 않아서 발생합니다 — device/<serial>/report 토픽은 대소문자를 구분합니다. 프린터 설정의 시리얼 번호를 프린터 화면 표시와 비교해 확인하세요.',
         skip: '확인할 수 없음 — 프린터에 연결되어 있어야 합니다.'
       }
     }
