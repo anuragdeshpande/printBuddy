@@ -926,6 +926,10 @@ export default {
       clearLogButton: 'Borrar todo',
       cleared: '{{count}} entradas del registro borradas',
       clearFailed: 'Error al borrar el registro de impresión',
+      deleteEntryTitle: 'Eliminar entrada del registro de impresión',
+      deleteEntryConfirm: 'Esta entrada se eliminará del registro y sus contribuciones de filamento, tiempo y costo desaparecerán de las estadísticas rápidas. El archivo correspondiente (si lo hay) no se ve afectado. Esta acción no se puede deshacer.',
+      entryDeleted: 'Entrada del registro de impresión eliminada',
+      entryDeleteFailed: 'Error al eliminar la entrada del registro de impresión',
     },
   },
 

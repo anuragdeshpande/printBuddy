@@ -926,6 +926,10 @@ export default {
       clearLogButton: '全部清除',
       cleared: '已清除 {{count}} 条日志',
       clearFailed: '清除打印日志失败',
+      deleteEntryTitle: '删除打印日志条目',
+      deleteEntryConfirm: '此条目将从日志中删除，其耗材、时间和成本贡献也将从快速统计中移除。对应的归档（如果有）不受影响。此操作无法撤销。',
+      entryDeleted: '已删除打印日志条目',
+      entryDeleteFailed: '删除打印日志条目失败',
     },
   },
 

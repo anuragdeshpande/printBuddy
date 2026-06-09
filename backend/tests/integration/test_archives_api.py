@@ -534,6 +534,78 @@ class TestArchivesAPI:
         assert "successful_prints" in result
 
 
+class TestPrintLogEntryDelete:
+    """#1687: per-row delete on the Print Log page.
+
+    Pin the route's three contracts: (1) deleting a row drops its filament
+    / cost / count contribution from /archives/stats in the same response
+    cycle; (2) the matching archive (if any) is untouched; (3) missing IDs
+    return 404 rather than 200-silently.
+    """
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_delete_print_log_entry_drops_from_stats(
+        self, async_client: AsyncClient, archive_factory, printer_factory, db_session
+    ):
+        from sqlalchemy import select
+
+        from backend.app.models.print_log import PrintLogEntry
+
+        printer = await printer_factory()
+        keep = await archive_factory(printer.id, status="completed", filament_used_grams=50.0)
+        drop = await archive_factory(printer.id, status="completed", filament_used_grams=125.0)
+
+        drop_run = (
+            await db_session.execute(select(PrintLogEntry).where(PrintLogEntry.archive_id == drop.id))
+        ).scalar_one()
+
+        resp = await async_client.delete(f"/api/v1/print-log/{drop_run.id}")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "deleted"
+        assert resp.json()["id"] == drop_run.id
+
+        # The linked archive survives — the row was a stats row, not the archive.
+        listing = (await async_client.get("/api/v1/archives/")).json()
+        assert {a["id"] for a in listing} == {keep.id, drop.id}
+
+        # /stats no longer counts the dropped run's filament contribution.
+        stats = (await async_client.get("/api/v1/archives/stats")).json()
+        assert stats["total_prints"] == 1
+        assert stats["total_filament_grams"] == 50.0
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_delete_print_log_entry_404_when_missing(self, async_client: AsyncClient):
+        resp = await async_client.delete("/api/v1/print-log/999999")
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_delete_print_log_entry_does_not_clear_others(
+        self, async_client: AsyncClient, archive_factory, printer_factory, db_session
+    ):
+        """Deleting one row must not touch siblings — guard against an accidental
+        ``delete(PrintLogEntry)`` without a ``where`` clause (cf. clear_print_log
+        which intentionally drops everything)."""
+        from sqlalchemy import select
+
+        from backend.app.models.print_log import PrintLogEntry
+
+        printer = await printer_factory()
+        a = await archive_factory(printer.id, status="completed", filament_used_grams=10.0)
+        b = await archive_factory(printer.id, status="completed", filament_used_grams=20.0)
+        c = await archive_factory(printer.id, status="completed", filament_used_grams=30.0)
+
+        runs = {r.archive_id: r for r in (await db_session.execute(select(PrintLogEntry))).scalars().all()}
+
+        resp = await async_client.delete(f"/api/v1/print-log/{runs[b.id].id}")
+        assert resp.status_code == 200
+
+        survivors = (await db_session.execute(select(PrintLogEntry.archive_id))).scalars().all()
+        assert set(survivors) == {a.id, c.id}
+
+
 class TestArchivesSlimAPI:
     """Integration tests for /api/v1/archives/slim endpoint."""
 

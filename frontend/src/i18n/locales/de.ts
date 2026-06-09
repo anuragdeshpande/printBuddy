@@ -926,6 +926,10 @@ export default {
       clearLogButton: 'Alle löschen',
       cleared: '{{count}} Protokolleinträge gelöscht',
       clearFailed: 'Druckprotokoll konnte nicht gelöscht werden',
+      deleteEntryTitle: 'Druckprotokoll-Eintrag löschen',
+      deleteEntryConfirm: 'Dieser Eintrag wird aus dem Protokoll entfernt und sein Filament-, Zeit- und Kostenbeitrag verschwindet aus den Schnellstatistiken. Das zugehörige Archiv (falls vorhanden) ist nicht betroffen. Diese Aktion kann nicht rückgängig gemacht werden.',
+      entryDeleted: 'Druckprotokoll-Eintrag gelöscht',
+      entryDeleteFailed: 'Druckprotokoll-Eintrag konnte nicht gelöscht werden',
     },
   },
 

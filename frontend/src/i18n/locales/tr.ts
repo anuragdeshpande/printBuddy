@@ -926,6 +926,10 @@ export default {
       clearLogButton: 'Hepsini Temizle',
       cleared: '{{count}} günlük kaydı temizlendi',
       clearFailed: 'Baskı günlüğü temizlenemedi',
+      deleteEntryTitle: 'Baskı günlüğü girişini sil',
+      deleteEntryConfirm: 'Bu giriş günlükten kaldırılacak ve filament, süre ve maliyet katkıları Hızlı İstatistikler\'den çıkarılacak. İlgili arşiv (varsa) etkilenmez. Bu işlem geri alınamaz.',
+      entryDeleted: 'Baskı günlüğü girişi silindi',
+      entryDeleteFailed: 'Baskı günlüğü girişi silinemedi',
     },
   },
 

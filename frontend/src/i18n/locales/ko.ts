@@ -861,7 +861,11 @@ export default {
       clearLogConfirm: '모든 인쇄 로그 항목이 영구적으로 삭제됩니다. 아카이브와 대기열 항목은 영향받지 않습니다. 이 작업은 취소할 수 없습니다. 계속하시겠습니까?',
       clearLogButton: '모두 지우기',
       cleared: '{{count}}개 로그 항목이 지워졌습니다',
-      clearFailed: '인쇄 로그 지우기 실패'
+      clearFailed: '인쇄 로그 지우기 실패',
+      deleteEntryTitle: '인쇄 로그 항목 삭제',
+      deleteEntryConfirm: '이 항목이 로그에서 삭제되며 필라멘트, 시간 및 비용 기여도가 빠른 통계에서 제외됩니다. 해당 아카이브(있는 경우)는 영향을 받지 않습니다. 이 작업은 취소할 수 없습니다.',
+      entryDeleted: '인쇄 로그 항목이 삭제되었습니다',
+      entryDeleteFailed: '인쇄 로그 항목 삭제 실패'
     },
     runLog: {
       title: '인쇄 기록',

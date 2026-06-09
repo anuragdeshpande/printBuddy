@@ -2611,6 +2611,7 @@ export function ArchivesPage() {
     return saved ? Number(saved) : 0;
   });
   const [showClearLogConfirm, setShowClearLogConfirm] = useState(false);
+  const [pendingDeleteEntryId, setPendingDeleteEntryId] = useState<number | null>(null);
   const [logPageSize, setLogPageSize] = useState(() => {
     const saved = localStorage.getItem('logPageSize');
     return saved ? Number(saved) : 25;
@@ -2720,6 +2721,18 @@ export function ArchivesPage() {
     },
     onError: () => {
       showToast(t('archives.log.clearFailed'), 'error');
+    },
+  });
+
+  const deleteLogEntryMutation = useMutation({
+    mutationFn: (id: number) => api.deletePrintLogEntry(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['print-log'] });
+      queryClient.invalidateQueries({ queryKey: ['archives-stats'] });
+      showToast(t('archives.log.entryDeleted'));
+    },
+    onError: () => {
+      showToast(t('archives.log.entryDeleteFailed'), 'error');
     },
   });
 
@@ -3749,6 +3762,7 @@ export function ArchivesPage() {
                         <th className="px-4 py-3 font-medium">{t('archives.log.status')}</th>
                         <th className="px-4 py-3 font-medium">{t('archives.log.duration')}</th>
                         <th className="px-4 py-3 font-medium">{t('archives.log.filament')}</th>
+                        <th className="px-4 py-3 font-medium w-10" aria-label={t('common.actions')} />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-bambu-dark-tertiary">
@@ -3801,6 +3815,24 @@ export function ArchivesPage() {
                                 {entry.filament_type || '—'}
                               </span>
                             </div>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => setPendingDeleteEntryId(entry.id)}
+                              disabled={
+                                deleteLogEntryMutation.isPending ||
+                                !(hasPermission('archives:delete_all') || hasPermission('archives:delete_own'))
+                              }
+                              title={
+                                hasPermission('archives:delete_all') || hasPermission('archives:delete_own')
+                                  ? t('archives.log.deleteEntryTitle')
+                                  : t('archives.permission.noDelete')
+                              }
+                              className="text-bambu-gray hover:text-red-400 disabled:opacity-40 disabled:hover:text-bambu-gray transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -3923,6 +3955,21 @@ export function ArchivesPage() {
             setShowClearLogConfirm(false);
           }}
           onCancel={() => setShowClearLogConfirm(false)}
+        />
+      )}
+
+      {/* Per-row Print Log entry delete confirmation (#1687) */}
+      {pendingDeleteEntryId !== null && (
+        <ConfirmModal
+          title={t('archives.log.deleteEntryTitle')}
+          message={t('archives.log.deleteEntryConfirm')}
+          confirmText={t('common.delete')}
+          variant="danger"
+          onConfirm={() => {
+            deleteLogEntryMutation.mutate(pendingDeleteEntryId);
+            setPendingDeleteEntryId(null);
+          }}
+          onCancel={() => setPendingDeleteEntryId(null)}
         />
       )}
     </div>

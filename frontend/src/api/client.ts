@@ -4364,6 +4364,8 @@ export const api = {
   getPrintLogThumbnail: (id: number) => withStreamToken(`${API_BASE}/print-log/${id}/thumbnail`),
   clearPrintLog: () =>
     request<{ deleted: number }>('/print-log/', { method: 'DELETE' }),
+  deletePrintLogEntry: (id: number) =>
+    request<{ status: string; id: number }>(`/print-log/${id}`, { method: 'DELETE' }),
 
   // Settings
   getSettings: () => request<AppSettings>('/settings/'),

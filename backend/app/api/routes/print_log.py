@@ -6,7 +6,11 @@ from fastapi.responses import FileResponse
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.auth import RequireCameraStreamTokenIfAuthEnabled, RequirePermissionIfAuthEnabled
+from backend.app.core.auth import (
+    RequireCameraStreamTokenIfAuthEnabled,
+    RequirePermissionIfAuthEnabled,
+    require_ownership_permission,
+)
 from backend.app.core.config import settings
 from backend.app.core.database import get_db
 from backend.app.core.permissions import Permission
@@ -137,3 +141,39 @@ async def clear_print_log(
 
     logger.info("Print log cleared: %d entries deleted", deleted)
     return {"deleted": deleted}
+
+
+@router.delete("/{entry_id}")
+async def delete_print_log_entry(
+    entry_id: int,
+    db: AsyncSession = Depends(get_db),
+    auth_result: tuple[User | None, bool] = Depends(
+        require_ownership_permission(
+            Permission.ARCHIVES_DELETE_ALL,
+            Permission.ARCHIVES_DELETE_OWN,
+        )
+    ),
+):
+    """Delete a single print-log entry (#1687).
+
+    Removes the row entirely. Because /archives/stats aggregates over
+    PrintLogEntry, the deleted row's filament / cost / duration / count
+    contributions drop out of the totals in the same response cycle.
+    The linked archive (if any) is untouched — the FK on the archive row
+    is from PrintLogEntry, not the other way around.
+    """
+    user, can_modify_all = auth_result
+
+    entry = await db.get(PrintLogEntry, entry_id)
+    if not entry:
+        raise HTTPException(404, "Print log entry not found")
+
+    if not can_modify_all:
+        if entry.created_by_id is None or (user is not None and entry.created_by_id != user.id):
+            raise HTTPException(403, "You can only delete your own print log entries")
+
+    await db.delete(entry)
+    await db.commit()
+
+    logger.info("Print log entry %d deleted", entry_id)
+    return {"status": "deleted", "id": entry_id}

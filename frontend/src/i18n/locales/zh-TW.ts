@@ -926,6 +926,10 @@ export default {
       clearLogButton: '全部清除',
       cleared: '已清除 {{count}} 條日誌',
       clearFailed: '清除列印日誌失敗',
+      deleteEntryTitle: '刪除列印日誌條目',
+      deleteEntryConfirm: '此條目將從日誌中刪除，其耗材、時間與成本貢獻也將從快速統計中移除。對應的歸檔（如有）不受影響。此操作無法復原。',
+      entryDeleted: '已刪除列印日誌條目',
+      entryDeleteFailed: '刪除列印日誌條目失敗',
     },
   },
 

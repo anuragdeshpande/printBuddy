@@ -926,6 +926,10 @@ export default {
       clearLogButton: 'Cancella tutto',
       cleared: '{{count}} voci di registro cancellate',
       clearFailed: 'Impossibile cancellare il registro stampe',
+      deleteEntryTitle: 'Elimina voce del registro stampe',
+      deleteEntryConfirm: 'Questa voce verrà rimossa dal registro e i suoi contributi di filamento, tempo e costo verranno scartati dalle statistiche rapide. L\'archivio corrispondente (se presente) non è interessato. Questa azione non può essere annullata.',
+      entryDeleted: 'Voce del registro stampe eliminata',
+      entryDeleteFailed: 'Impossibile eliminare la voce del registro stampe',
     },
   },
 

@@ -926,6 +926,10 @@ export default {
       clearLogButton: 'Tout effacer',
       cleared: '{{count}} entrées de journal effacées',
       clearFailed: 'Échec de l\'effacement du journal d\'impression',
+      deleteEntryTitle: 'Supprimer l\'entrée du journal d\'impression',
+      deleteEntryConfirm: 'Cette entrée sera retirée du journal et ses contributions en filament, temps et coût disparaîtront des statistiques rapides. L\'archive correspondante (le cas échéant) n\'est pas affectée. Cette action est irréversible.',
+      entryDeleted: 'Entrée du journal d\'impression supprimée',
+      entryDeleteFailed: 'Échec de la suppression de l\'entrée du journal d\'impression',
     },
   },
 

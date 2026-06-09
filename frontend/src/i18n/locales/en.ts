@@ -926,6 +926,10 @@ export default {
       clearLogButton: 'Clear All',
       cleared: '{{count}} log entries cleared',
       clearFailed: 'Failed to clear print log',
+      deleteEntryTitle: 'Delete print log entry',
+      deleteEntryConfirm: 'This entry will be removed from the log and its filament, time, and cost contributions will drop out of Quick Stats. The matching archive (if any) is not affected. This action cannot be undone.',
+      entryDeleted: 'Print log entry deleted',
+      entryDeleteFailed: 'Failed to delete print log entry',
     },
   },
 

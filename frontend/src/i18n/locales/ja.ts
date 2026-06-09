@@ -925,6 +925,10 @@ export default {
       clearLogButton: 'すべてクリア',
       cleared: '{{count}}件のログエントリを削除しました',
       clearFailed: '印刷ログの削除に失敗しました',
+      deleteEntryTitle: '印刷ログのエントリを削除',
+      deleteEntryConfirm: 'このエントリはログから削除され、フィラメント、時間、コストの寄与はクイック統計から除外されます。対応するアーカイブ（ある場合）は影響を受けません。この操作は取り消せません。',
+      entryDeleted: '印刷ログのエントリを削除しました',
+      entryDeleteFailed: '印刷ログのエントリを削除できませんでした',
     },
   },
 
