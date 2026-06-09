@@ -497,6 +497,45 @@ describe('ConfigureAmsSlotModal', () => {
     });
   });
 
+  it("surfaces the slot's active K-profile when no preset is resolvable (#1689 follow-up)", async () => {
+    // Repro from Spionkiller01: slot is physically loaded but unconfigured —
+    // tray_type='', tray_info_idx='', no slot_preset_mappings row — so
+    // selectedPresetInfo resolves to null. Before the patch the main matcher's
+    // early return on !selectedPresetInfo skipped past the cali_idx safety net
+    // entirely; on reopen the dropdown went back to default 0.020 even though
+    // the printer still holds the active profile at cali_idx=6.
+    (api.getKProfiles as ReturnType<typeof vi.fn>).mockResolvedValue({
+      profiles: [
+        {
+          slot_id: 6,
+          extruder_id: 0,
+          nozzle_id: 'HH00-0.4',
+          nozzle_diameter: '0.4',
+          filament_id: 'GFG98',
+          name: 'active-on-unconfigured-slot',
+          k_value: '0.030',
+          n_coef: '0',
+          ams_id: 0,
+          tray_id: 0,
+          setting_id: '',
+        },
+      ],
+    });
+    const slotInfo = {
+      ...defaultProps.slotInfo,
+      trayType: '',
+      traySubBrands: '',
+      caliIdx: 6,
+      extruderId: 0,
+      // savedPresetId intentionally omitted — no preset bound yet
+    };
+    render(<ConfigureAmsSlotModal {...defaultProps} slotInfo={slotInfo} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: /active-on-unconfigured-slot/ })).toBeInTheDocument();
+    });
+  });
+
   it('does not include the active K-profile when caliIdx is 0 or null (#1689 guard)', async () => {
     // cali_idx == 0 / null means no profile is active (printer default 0.020).
     // The safety net only triggers for activeIdx > 0 — otherwise unrelated

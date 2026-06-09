@@ -748,7 +748,24 @@ export function ConfigureAmsSlotModal({
   }, [colorCatalog, selectedPresetInfo]);
 
   const matchingKProfiles = useMemo(() => {
-    if (!kprofilesData?.profiles || !selectedPresetInfo) return [];
+    if (!kprofilesData?.profiles) return [];
+    if (!selectedPresetInfo) {
+      // Assigned-but-unconfigured slot (filament loaded but the printer hasn't
+      // bound a preset yet: tray_type=""/tray_info_idx=""/no slot_preset_mappings
+      // row). The cali_idx safety net further down lives past the main name+id
+      // matcher and never runs from here, so surface the slot's currently-active
+      // K-profile directly so Configure Slot keeps showing it across reopen
+      // instead of dropping to default 0.020 (#1689 follow-up).
+      const activeIdx = slotInfo.caliIdx;
+      if (activeIdx != null && activeIdx > 0) {
+        const active = kprofilesData.profiles.find(
+          p => p.slot_id === activeIdx
+            && (slotInfo.extruderId === undefined || p.extruder_id === slotInfo.extruderId),
+        );
+        if (active) return [active];
+      }
+      return [];
+    }
 
     const { fullName, material, brand, filamentId } = selectedPresetInfo;
     const upperFullName = fullName.toUpperCase();
