@@ -5,6 +5,7 @@ import pytest
 from backend.app.services.camera import get_camera_port, supports_rtsp
 from backend.app.utils.printer_models import (
     CARBON_ROD_MODELS,
+    LINEAR_RAIL_MODELS,
     STEEL_ROD_MODELS,
     get_rod_type,
     has_ethernet,
@@ -106,6 +107,68 @@ class TestX2DModel:
         assert "N6" not in CARBON_ROD_MODELS
         assert "X2D" in STEEL_ROD_MODELS
         assert "N6" in STEEL_ROD_MODELS
+
+
+class TestA2LModel:
+    """A2L printer support (#1684).
+
+    The A2L is a hybrid 3D printer + cutter/plotter announced June 2026. It
+    uses linear rails like the A1 family, has NO Ethernet (Wi-Fi 2.4 GHz only),
+    a low-rate chamber-image camera on port 6000 (no RTSP), and a single FDM
+    extruder (the second "tool head" in BambuStudio's profile is the cutter,
+    not a second extruder — must NOT be classified as dual-nozzle). Internal
+    SSDP/MQTT model code is "N9"; serial numbers begin with "26A19".
+    """
+
+    def test_a2l_is_linear_rail_display_name(self):
+        assert get_rod_type("A2L") == "linear_rail"
+
+    def test_a2l_is_linear_rail_internal_code(self):
+        assert get_rod_type("N9") == "linear_rail"
+
+    def test_a2l_model_id_map(self):
+        assert normalize_printer_model_id("N9") == "A2L"
+
+    def test_a2l_model_map(self):
+        assert normalize_printer_model("Bambu Lab A2L") == "A2L"
+
+    def test_a2l_has_no_ethernet_display_name(self):
+        """A2L specs (bambulab.com/de-de/a2l/specs) list Ethernet 'Nicht verfügbar'."""
+        assert has_ethernet("A2L") is False
+
+    def test_a2l_has_no_ethernet_internal_code(self):
+        assert has_ethernet("N9") is False
+
+    def test_a2l_does_not_support_rtsp_display_name(self):
+        """A2L uses the low-rate chamber-image protocol on port 6000, not RTSP."""
+        assert supports_rtsp("A2L") is False
+
+    def test_a2l_does_not_support_rtsp_internal_code(self):
+        assert supports_rtsp("N9") is False
+
+    def test_a2l_camera_port_is_chamber_image(self):
+        assert get_camera_port("A2L") == 6000
+        assert get_camera_port("N9") == 6000
+
+    def test_a2l_is_not_dual_nozzle(self):
+        """A2L has a single FDM extruder + a cutter/plotter head. The
+        BambuStudio profile flag ``use_double_extruder_default_texture`` flags
+        the dual TOOL HEADS, not dual filament extrusion — A2L must not land
+        in the dual-nozzle group or AMS routing will target the deputy slot
+        and the firmware will reject the print with 07FF_8012.
+        """
+        assert is_dual_nozzle_model("A2L") is False
+        assert is_dual_nozzle_model("N9") is False
+
+    def test_a2l_in_linear_rail_set(self):
+        assert "A2L" in LINEAR_RAIL_MODELS
+        assert "N9" in LINEAR_RAIL_MODELS
+
+    def test_a2l_not_in_carbon_or_steel_rod_sets(self):
+        assert "A2L" not in CARBON_ROD_MODELS
+        assert "N9" not in CARBON_ROD_MODELS
+        assert "A2L" not in STEEL_ROD_MODELS
+        assert "N9" not in STEEL_ROD_MODELS
 
 
 class TestA1SeriesModelIds:
