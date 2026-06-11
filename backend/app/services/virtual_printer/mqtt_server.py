@@ -15,6 +15,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from backend.app.services.virtual_printer._debug import dump_wire
+
 if TYPE_CHECKING:
     from backend.app.services.virtual_printer.mqtt_bridge import MQTTBridge
 
@@ -912,6 +914,7 @@ class SimpleMQTTServer:
                 print_block["total_layer_num"] = 0
                 print_block["print_error"] = 0
                 status = {"print": print_block}
+                dump_wire(self.vp_name, "out", status)
                 await self._publish_to_report(writer, status, serial or self.serial)
                 return
 
