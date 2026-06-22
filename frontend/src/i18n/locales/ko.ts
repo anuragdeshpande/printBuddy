@@ -509,7 +509,20 @@ export default {
       titleOff: 'AMS 필라멘트 백업이 꺼져 있습니다. 활성화하려면 클릭하세요.',
       titleUnknown: '이 프린터에서는 AMS 필라멘트 백업 상태를 확인할 수 없습니다.',
       toastEnabled: 'AMS 필라멘트 백업이 활성화되었습니다',
-      toastDisabled: 'AMS 필라멘트 백업이 비활성화되었습니다'
+      toastDisabled: 'AMS 필라멘트 백업이 비활성화되었습니다',
+      modalTitle: 'AMS 필라멘트 백업',
+      modalHelp: '활성 슬롯이 소진되면 프린터는 같은 프리셋과 색상의 슬롯을 이 순서로 순환합니다.',
+      modalNoSlots: '필라멘트가 로드되지 않았습니다.',
+      modalNoPairs: '백업 쌍이 없습니다 — 프리셋과 색상이 모두 일치하는 슬롯이 없습니다.',
+      extruderRightShort: '우',
+      extruderLeftShort: '좌',
+      stateOn: '활성화됨',
+      stateOff: '비활성화됨',
+      stateUnknown: '이 프린터에서 지원되지 않음'
+    },
+    activeJobSlot: {
+      title: '이 슬롯은 활성 인쇄의 필라멘트 {{n}}입니다',
+      ariaLabel: '활성 인쇄 슬롯 {{n}}'
     },
     filaments: '필라멘트',
     openCameraOverlay: '카메라 오버레이 열기',
