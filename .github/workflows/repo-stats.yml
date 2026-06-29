@@ -34,6 +34,12 @@ jobs:
         with:
           ref: gh-pages
           path: gh-pages
+          # Same PAT jgehrcke writes gh-pages with — keeps the auth
+          # chain uniform and avoids the default GITHUB_TOKEN being
+          # rejected on fetch (root cause of the earlier "exit code 1"
+          # with no surfaced git stderr).
+          token: ${{ secrets.GHRS_GITHUB_API_TOKEN }}
+          fetch-depth: 1
 
       - name: inject-ghcr-pulls
         run: |
