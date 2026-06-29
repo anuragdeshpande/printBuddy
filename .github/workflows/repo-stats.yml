@@ -19,3 +19,40 @@ jobs:
           repository: maziggy/bambuddy
           ghtoken: ${{ secrets.GHRS_GITHUB_API_TOKEN }}
           ghpagesprefix: https://maziggy.github.io/bambuddy
+
+      # Inject ghcr.io container-download stats (cumulative + 30-day
+      # sparkline merged into a sidecar CSV so the chart grows beyond
+      # the 30-day window GHCR exposes). Runs after jgehrcke regenerates
+      # report.html on gh-pages.
+      - name: checkout-source
+        uses: actions/checkout@v4
+        with:
+          path: source
+
+      - name: checkout-gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: inject-ghcr-pulls
+        run: |
+          python3 source/.github/scripts/ghcr_inject.py \
+            --report gh-pages/maziggy/bambuddy/latest-report/report.html \
+            --csv    gh-pages/maziggy/bambuddy/ghcr-pulls.csv \
+            --owner  maziggy \
+            --pkg    bambuddy
+
+      - name: commit-and-push
+        working-directory: gh-pages
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "no changes — skipping commit"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add maziggy/bambuddy/latest-report/report.html \
+                  maziggy/bambuddy/ghcr-pulls.csv
+          git commit -m "ghcr-pulls: refresh container downloads chart"
+          git push
