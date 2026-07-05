@@ -3121,6 +3121,7 @@ export default {
       clearAll: 'すべて解除',
       permissionsSelected: '{{count}}件選択',
       noResults: '検索に一致する権限がありません',
+      websocketHint: 'ライブ更新に必要です。この権限がないと、インターフェースは定期的なポーリングに切り替わります。',
     },
   },
 

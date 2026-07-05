@@ -3125,6 +3125,7 @@ export default {
       clearAll: 'Tümünü Temizle',
       permissionsSelected: '{{count}} seçildi',
       noResults: 'Aramanızla eşleşen izin yok',
+      websocketHint: 'Canlı güncellemeler için gereklidir. Bu izin olmadan arayüz düzenli yoklamaya geri döner.',
     },
   },
 

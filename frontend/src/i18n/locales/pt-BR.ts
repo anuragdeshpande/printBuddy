@@ -3109,6 +3109,7 @@ export default {
       clearAll: 'Limpar Tudo',
       permissionsSelected: '{{count}} selecionada(s)',
       noResults: 'Nenhuma permissão corresponde à sua pesquisa',
+      websocketHint: 'Necessário para atualizações em tempo real. Sem esta permissão, a interface recorre à sondagem periódica.',
     },
   },
 

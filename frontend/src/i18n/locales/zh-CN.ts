@@ -3109,6 +3109,7 @@ export default {
       clearAll: '清除全部',
       permissionsSelected: '已选 {{count}} 个',
       noResults: '没有权限匹配您的搜索',
+      websocketHint: '实时更新所需。缺少此权限时，界面将回退到定期轮询。',
     },
   },
 

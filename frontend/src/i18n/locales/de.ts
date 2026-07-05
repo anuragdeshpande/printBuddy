@@ -3121,6 +3121,7 @@ export default {
       clearAll: 'Alle abwählen',
       permissionsSelected: '{{count}} ausgewählt',
       noResults: 'Keine Berechtigungen entsprechen Ihrer Suche',
+      websocketHint: 'Erforderlich für Live-Aktualisierungen. Ohne diese Berechtigung greift die Oberfläche auf regelmäßiges Abrufen zurück.',
     },
   },
 
