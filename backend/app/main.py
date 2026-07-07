@@ -49,6 +49,7 @@ from backend.app.api.routes import (
     obico,
     orca_cloud,
     pending_uploads,
+    pipeline_runs,
     print_log,
     print_queue,
     printer_sensor_history,
@@ -56,6 +57,7 @@ from backend.app.api.routes import (
     projects,
     settings as settings_routes,
     slice_jobs,
+    slicer_pipelines,
     slicer_presets,
     smart_plugs,
     sponsor_prompt,
@@ -6750,6 +6752,9 @@ app.include_router(library.router, prefix=app_settings.api_prefix)
 app.include_router(library_tags.router, prefix=app_settings.api_prefix)
 app.include_router(library_trash.router, prefix=app_settings.api_prefix)
 app.include_router(slice_jobs.router, prefix=app_settings.api_prefix)
+app.include_router(slicer_pipelines.router, prefix=app_settings.api_prefix)
+app.include_router(pipeline_runs.pipeline_run_create_router, prefix=app_settings.api_prefix)
+app.include_router(pipeline_runs.pipeline_run_router, prefix=app_settings.api_prefix)
 app.include_router(slicer_presets.router, prefix=app_settings.api_prefix)
 app.include_router(archive_purge.router, prefix=app_settings.api_prefix)
 app.include_router(makerworld.router, prefix=app_settings.api_prefix)
