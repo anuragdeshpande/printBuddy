@@ -3110,6 +3110,7 @@ export default {
       clearAll: 'Tout désélectionner',
       permissionsSelected: '{{count}} sélectionnée(s)',
       noResults: 'Aucune permission ne correspond à votre recherche',
+      websocketHint: "Requis pour les mises à jour en direct. Sans cette permission, l'interface bascule sur une actualisation périodique.",
     },
   },
 

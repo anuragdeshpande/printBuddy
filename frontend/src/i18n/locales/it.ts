@@ -3109,6 +3109,7 @@ export default {
       clearAll: 'Deseleziona tutto',
       permissionsSelected: '{{count}} selezionati',
       noResults: 'Nessun permesso corrisponde alla ricerca',
+      websocketHint: "Necessario per gli aggiornamenti in tempo reale. Senza questo permesso, l'interfaccia ripiega sul polling periodico.",
     },
   },
 
