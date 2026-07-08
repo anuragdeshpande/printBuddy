@@ -547,10 +547,24 @@ async def capture_camera_frame_bytes(
     Returns:
         JPEG bytes if capture was successful, None otherwise
     """
+    # Elegoo FDM models - fetch MJPEG snapshot frame
+    from backend.app.services.elegoo_client import is_elegoo_model
+    if is_elegoo_model(model):
+        logger.info("Capturing camera frame bytes from %s using Elegoo MJPEG (model: %s)", ip_address, model)
+        from pycentauri.camera import snapshot as elegoo_snapshot
+        port = 8080 if model and "CC2" in model.upper() else 3031
+        try:
+            return await elegoo_snapshot(ip_address, port=port, timeout=float(timeout))
+        except Exception as e:
+            logger.error("Failed to capture snapshot from Elegoo printer: %s", e)
+            return None
+
     # Chamber image models: A1/P1 - returns bytes directly
     if is_chamber_image_model(model):
         logger.info("Capturing camera frame bytes from %s using chamber image protocol (model: %s)", ip_address, model)
         return await read_chamber_image_frame(ip_address, access_code, timeout=float(timeout))
+
+
 
     # RTSP models: X1/H2/P2 - use ffmpeg piping to stdout
     # TLS proxy avoids GnuTLS compatibility issues with some printer firmwares

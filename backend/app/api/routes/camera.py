@@ -96,8 +96,11 @@ def is_stream_active(printer_id: int) -> bool:
     returns None (the stream may be running but the first frame hasn't landed
     in the buffer yet, or the upstream is mid-reconnect).
     """
-    return any(k.startswith(f"{printer_id}-") for k in _active_streams) or any(
-        k.startswith(f"{printer_id}-") for k in _active_chamber_streams
+    from backend.app.services.camera_fanout import active_broadcaster_keys
+    return (
+        any(k.startswith(f"{printer_id}-") for k in _active_streams)
+        or any(k.startswith(f"{printer_id}-") for k in _active_chamber_streams)
+        or f"printer-{printer_id}" in active_broadcaster_keys()
     )
 
 
@@ -231,7 +234,118 @@ async def generate_chamber_mjpeg_stream(
         logger.info("Chamber image stream stopped for %s (stream_id=%s)", ip_address, stream_id)
 
 
+async def generate_elegoo_mjpeg_stream(
+    ip_address: str,
+    access_code: str,
+    model: str | None,
+    fps: int = 10,
+    stream_id: str | None = None,
+    disconnect_event: asyncio.Event | None = None,
+    printer_id: int | None = None,
+) -> AsyncGenerator[bytes, None]:
+    """Generate MJPEG stream from Elegoo printer webcam."""
+    port = 8080 if model and "CC2" in model.upper() else 3031
+    url = f"http://{ip_address}:{port}/video"
+    logger.info("Starting Elegoo camera stream at %s (stream_id=%s, model=%s)", url, stream_id, model)
+
+    import httpx
+    import time
+    
+    SOI = b"\xff\xd8"
+    EOI = b"\xff\xd9"
+
+    # Register disconnect event so stop endpoint can signal us
+    if stream_id and disconnect_event:
+        _disconnect_events[stream_id] = disconnect_event
+
+    try:
+        while True:
+            if disconnect_event and disconnect_event.is_set():
+                logger.info("Client disconnected, stopping Elegoo stream %s", stream_id)
+                break
+
+            logger.info("Connecting to Elegoo camera stream at %s...", url)
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    async with client.stream("GET", url) as response:
+                        if response.status_code != 200:
+                            logger.error(
+                                "Elegoo camera returned HTTP %s from %s. Retrying in 2s...",
+                                response.status_code,
+                                url,
+                            )
+                            await asyncio.sleep(2.0)
+                            continue
+
+                        buf = bytearray()
+                        start_idx: int | None = None
+                        start_time = time.time()
+                        
+                        async for chunk in response.aiter_bytes():
+                            if disconnect_event and disconnect_event.is_set():
+                                break
+
+                            # Proactively rotate camera stream every 50 seconds to avoid printer timeouts
+                            if time.time() - start_time > 50.0:
+                                logger.info("Proactively rotating Elegoo camera stream at %s to maintain stability", ip_address)
+                                break
+
+                            buf.extend(chunk)
+                            
+                            while True:
+                                if start_idx is None:
+                                    i = buf.find(SOI)
+                                    if i >= 0:
+                                        start_idx = i
+                                    else:
+                                        if len(buf) > 0:
+                                            buf = buf[-1:]
+                                        break
+                                
+                                if start_idx is not None:
+                                    j = buf.find(EOI, start_idx + 2)
+                                    if j >= 0:
+                                        frame = bytes(buf[start_idx : j + 2])
+                                        del buf[: j + 2]
+                                        start_idx = None
+                                        
+                                        if printer_id is not None:
+                                            _last_frames[printer_id] = frame
+                                            _last_frame_times[printer_id] = time.time()
+                                        
+                                        yield (
+                                            b"--frame\r\n"
+                                            b"Content-Type: image/jpeg\r\n"
+                                            b"Content-Length: " + str(len(frame)).encode() + b"\r\n\r\n"
+                                            + frame
+                                            + b"\r\n"
+                                        )
+                                        await asyncio.sleep(0.01)
+                                    else:
+                                        del buf[:start_idx]
+                                        start_idx = 0
+                                        break
+
+            except httpx.HTTPError as e:
+                logger.warning("HTTP error in Elegoo camera stream (retrying in 2s): %s", e)
+                await asyncio.sleep(2.0)
+            except Exception as e:
+                logger.warning("Error in Elegoo camera stream (retrying in 2s): %s", e)
+                await asyncio.sleep(2.0)
+
+    finally:
+        if stream_id and disconnect_event:
+            _disconnect_events.pop(stream_id, None)
+        if printer_id is not None:
+            _last_frames.pop(printer_id, None)
+            _last_frame_times.pop(printer_id, None)
+            _stream_start_times.pop(printer_id, None)
+        logger.info("Elegoo camera stream stopped for %s (stream_id=%s)", ip_address, stream_id)
+
+
+
 async def _terminate_ffmpeg(process: asyncio.subprocess.Process, stream_id: str | None = None) -> None:
+
     """Terminate an ffmpeg process gracefully, then kill if needed."""
     if process.returncode is not None:
         return  # Already dead
@@ -671,13 +785,19 @@ async def camera_stream(
         )
 
     # Validate FPS - A1/P1 models max out at ~5 FPS
-    if is_chamber_image_model(printer.model):
+    from backend.app.services.elegoo_client import is_elegoo_model
+    is_elegoo = is_elegoo_model(printer.model)
+    
+    if is_chamber_image_model(printer.model) and not is_elegoo:
         fps = min(max(fps, 1), 5)
     else:
         fps = min(max(fps, 1), 30)
 
     # Choose the appropriate stream generator based on model
-    if is_chamber_image_model(printer.model):
+    if is_elegoo:
+        stream_generator = generate_elegoo_mjpeg_stream
+        logger.info("Using Elegoo camera stream for %s", printer.model)
+    elif is_chamber_image_model(printer.model):
         stream_generator = generate_chamber_mjpeg_stream
         logger.info("Using chamber image protocol for %s", printer.model)
     else:
@@ -1045,6 +1165,12 @@ async def camera_status(
             if stream_id.startswith(f"{printer_id}-"):
                 has_active_stream = True
                 break
+
+    # Check broadcaster registry (e.g. Elegoo streams)
+    if not has_active_stream:
+        from backend.app.services.camera_fanout import active_broadcaster_keys
+        if f"printer-{printer_id}" in active_broadcaster_keys():
+            has_active_stream = True
 
     # Get timing information
     current_time = time.time()
