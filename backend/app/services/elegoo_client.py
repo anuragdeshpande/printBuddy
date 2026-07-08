@@ -1,0 +1,449 @@
+import asyncio
+import logging
+from collections.abc import Callable
+from typing import Any
+
+from pycentauri import connect_auto, Printer
+from pycentauri.models import Status, Attributes, CanvasStatus
+
+from backend.app.services.bambu_mqtt import PrinterState, NozzleInfo, PrintOptions
+
+logger = logging.getLogger(__name__)
+
+def is_elegoo_model(model: str | None) -> bool:
+    """Check if the model string indicates an Elegoo printer."""
+    if not model:
+        return False
+    m = model.upper()
+    return any(x in m for x in ["CENTAURI", "CC1", "CC2", "ELEGOO"])
+
+
+class ElegooCentauriClient:
+    """Compatibility wrapper that acts as a drop-in replacement for BambuMQTTClient,
+    routing operations to an Elegoo printer via the pycentauri SDK.
+    """
+
+    def __init__(
+        self,
+        ip_address: str,
+        serial_number: str,
+        access_code: str,
+        model: str | None = None,
+        on_state_change: Callable[[PrinterState], None] | None = None,
+        on_print_start: Callable[[dict], None] | None = None,
+        on_print_complete: Callable[[dict], None] | None = None,
+        on_ams_change: Callable[[list], None] | None = None,
+        on_layer_change: Callable[[int], None] | None = None,
+        on_bed_temp_update: Callable[[float], None] | None = None,
+        on_drying_complete: Callable[[int], None] | None = None,
+        on_print_running_observed: Callable[[dict], None] | None = None,
+        on_finish_photo_moment: Callable[[dict], None] | None = None,
+    ):
+        self.ip_address = ip_address
+        self.serial_number = serial_number
+        self.access_code = access_code
+        self.model = model
+        
+        self.on_state_change = on_state_change
+        self.on_print_start = on_print_start
+        self.on_print_complete = on_print_complete
+        self.on_ams_change = on_ams_change
+        self.on_layer_change = on_layer_change
+        self.on_bed_temp_update = on_bed_temp_update
+        self.on_drying_complete = on_drying_complete
+        self.on_print_running_observed = on_print_running_observed
+        self.on_finish_photo_moment = on_finish_photo_moment
+
+        self.state = PrinterState()
+        self._printer: Printer | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._connect_task: asyncio.Task[None] | None = None
+        self._watcher_task: asyncio.Task[None] | None = None
+        
+        self._was_running = False
+        self._completion_triggered = False
+        self._last_layer_num = 0
+        self._last_bed_temp = 0.0
+        self._drying_targets = {}
+
+
+    @property
+    def connected(self) -> bool:
+        return self.state.connected
+
+    @property
+    def logging_enabled(self) -> bool:
+        return False
+
+    def enable_logging(self, enabled: bool):
+        pass
+
+    def get_logs(self) -> list:
+        return []
+
+    def clear_logs(self):
+        pass
+
+    def connect(self):
+        """Start async connection task on the running loop."""
+        self._loop = asyncio.get_running_loop()
+        self._connect_task = self._loop.create_task(self._async_connect())
+
+    def disconnect(self, timeout=None):
+        """Disconnect and clean up tasks."""
+        if self._connect_task:
+            self._connect_task.cancel()
+        if self._printer and self._loop:
+            self._loop.create_task(self._printer.close())
+        self.state.connected = False
+        if self.on_state_change:
+            self.on_state_change(self.state)
+
+    async def _async_connect(self):
+        while True:
+            proactive_rotate = False
+            try:
+                logger.info("Connecting to Elegoo printer at %s", self.ip_address)
+                self._printer = await connect_auto(
+                    self.ip_address,
+                    access_code=self.access_code,
+                    connect_timeout=5.0,
+                    enable_control=True
+                )
+                self.state.connected = True
+                
+                # Fetch initial attributes to learn serial/version info
+                try:
+                    attrs = await self._printer.attributes()
+                    self.state.firmware_version = attrs.firmware_version
+                except Exception as e:
+                    logger.warning("Could not fetch Elegoo attributes: %s", e)
+
+                if self.on_state_change:
+                    self.on_state_change(self.state)
+
+                # Iterate watch loop to receive telemetry pushes
+                start_time = asyncio.get_running_loop().time()
+                async for status in self._printer.watch():
+                    self._update_state(status)
+                    
+                    # Proactively rotate connection every 50 seconds to avoid printer daemon timeouts
+                    if asyncio.get_running_loop().time() - start_time > 50.0:
+                        logger.info("Proactively rotating Elegoo connection at %s to maintain stability", self.ip_address)
+                        proactive_rotate = True
+                        break
+
+            except asyncio.CancelledError:
+                logger.info("Connection task cancelled for Elegoo printer at %s", self.ip_address)
+                break
+            except Exception as e:
+                if not proactive_rotate:
+                    logger.warning(
+                        "Connection lost or failed to connect to Elegoo printer at %s: %s. Retrying in 5s...",
+                        self.ip_address,
+                        e,
+                    )
+                    self.state.connected = False
+                    if self.on_state_change:
+                        self.on_state_change(self.state)
+                
+                if self._printer:
+                    try:
+                        await self._printer.close()
+                    except Exception:
+                        pass
+                    self._printer = None
+                
+                if proactive_rotate:
+                    await asyncio.sleep(0.5)
+                else:
+                    await asyncio.sleep(5.0)
+                continue
+
+            # Graceful proactive rotation cleanup - skip state.connected = False
+            if self._printer:
+                try:
+                    await self._printer.close()
+                except Exception:
+                    pass
+                self._printer = None
+            
+            await asyncio.sleep(0.5)
+
+
+
+    def _update_state(self, status: Status):
+        self.state.connected = True
+        self.state.temperatures = {
+            "nozzle": status.temp_nozzle or 0.0,
+            "nozzle_target": status.temp_nozzle_target or 0.0,
+            "bed": status.temp_bed or 0.0,
+            "bed_target": status.temp_bed_target or 0.0,
+            "chamber": status.temp_chamber or 0.0,
+            "chamber_target": status.temp_chamber_target or 0.0,
+        }
+
+        # Map fan speeds
+        self.state.cooling_fan_speed = status.fan_speed.get("ModelFan", 0)
+        self.state.big_fan1_speed = status.fan_speed.get("AuxiliaryFan", 0)
+        self.state.big_fan2_speed = status.fan_speed.get("BoxFan", 0)
+
+        # Map light status (SecondLight represents the enclosure LED on CC2 FDM)
+        self.state.chamber_light = bool(status.light.get("SecondLight", 0))
+
+        if status.print_info:
+            self.state.current_print = status.print_info.filename
+            self.state.subtask_name = status.print_info.filename
+            self.state.progress = float(status.print_info.progress or 0)
+            self.state.layer_num = status.print_info.current_layer or 0
+            self.state.total_layers = status.print_info.total_layer or 0
+            
+            # Map speed level (1=silent, 2=standard, 3=sport, 4=ludicrous)
+            pct = status.print_info.print_speed
+            if pct == 50:
+                self.state.speed_level = 1
+            elif pct == 100:
+                self.state.speed_level = 2
+            elif pct == 130:
+                self.state.speed_level = 3
+            elif pct == 160:
+                self.state.speed_level = 4
+            else:
+                self.state.speed_level = 2
+
+            # Map print status code to Bambu-compatible string
+            print_status_code = status.print_status
+            state_str = "IDLE"
+            if print_status_code == 0:
+                state_str = "IDLE"
+            elif print_status_code in (1, 13, 15, 16, 27, 28, 29):
+                state_str = "RUNNING"
+            elif print_status_code in (5, 6):
+                state_str = "PAUSE"
+            elif print_status_code in (7, 8):
+                state_str = "IDLE"
+            elif print_status_code == 9:
+                state_str = "FINISH"
+            elif print_status_code == 14:
+                state_str = "FAILED"
+
+            self.state.state = state_str
+
+            # Trigger state callbacks
+            if state_str == "RUNNING" and not self._was_running:
+                self._was_running = True
+                if self.on_print_start:
+                    self.on_print_start({
+                        "filename": self.state.current_print,
+                        "subtask_name": self.state.subtask_name,
+                        "remaining_time": self.state.remaining_time,
+                    })
+
+            if state_str == "FINISH" and not self._completion_triggered:
+                self._completion_triggered = True
+                if self.on_print_complete:
+                    self.on_print_complete({
+                        "filename": self.state.current_print,
+                        "status": "success",
+                    })
+
+            if state_str != "RUNNING":
+                self._was_running = False
+                self._completion_triggered = False
+
+            if self.state.layer_num != self._last_layer_num:
+                self._last_layer_num = self.state.layer_num
+                if self.on_layer_change:
+                    self.on_layer_change(self.state.layer_num)
+
+        bed_temp = self.state.temperatures.get("bed", 0.0)
+        if abs(bed_temp - self._last_bed_temp) > 0.1:
+            self._last_bed_temp = bed_temp
+            if self.on_bed_temp_update:
+                self.on_bed_temp_update(bed_temp)
+
+        # Trigger AMS/Canvas state updates
+        if hasattr(self._printer, "canvas_status") and self._loop:
+            self._loop.create_task(self._update_canvas_status())
+
+        if self.on_state_change:
+            self.on_state_change(self.state)
+
+    async def _update_canvas_status(self):
+        try:
+            canvas = await self._printer.canvas_status()
+            ams_units = []
+            for unit in canvas.canvas_list:
+                trays = []
+                for tray in unit.tray_list:
+                    color = tray.filament_color.lstrip("#") if tray.filament_color else ""
+                    trays.append({
+                        "id": tray.tray_id,
+                        "tray_type": tray.filament_type or "PLA",
+                        "tray_color": color,
+                        "tray_sub_brands": tray.filament_name or "",
+                        "state": 11 if tray.status == 1 else 9,
+                        "nozzle_temp_min": tray.min_nozzle_temp,
+                        "nozzle_temp_max": tray.max_nozzle_temp,
+                    })
+                ams_units.append({
+                    "id": unit.canvas_id,
+                    "tray": trays,
+                    "serial_number": f"CANVAS{unit.canvas_id}",
+                    "sw_ver": "1.0.0",
+                })
+            self.state.ams = ams_units
+            self.state.ams_exists = len(ams_units) > 0
+            if self.on_ams_change:
+                self.on_ams_change(self.state.ams)
+        except Exception:
+            pass
+
+    def _run_async(self, coro) -> bool:
+        if self._loop and self._loop.is_running():
+            self._loop.create_task(coro)
+            return True
+        return False
+
+    # --- Control Interface implementation ---
+
+    def start_print(
+        self,
+        filename: str,
+        plate_id: int = 1,
+        ams_mapping: list[int] | None = None,
+        bed_levelling: bool = True,
+        flow_cali: bool = False,
+        vibration_cali: bool = True,
+        layer_inspect: bool = False,
+        timelapse: bool = False,
+        use_ams: bool = True,
+        nozzle_offset_cali: bool = False,
+        nozzle_mapping: str | None = None,
+    ) -> bool:
+        if not self._printer:
+            return False
+        return self._run_async(self._printer.start_print(filename, storage="local"))
+
+    def stop_print(self) -> bool:
+        if not self._printer:
+            return False
+        return self._run_async(self._printer.stop())
+
+    def pause_print(self) -> bool:
+        if not self._printer:
+            return False
+        return self._run_async(self._printer.pause())
+
+    def resume_print(self) -> bool:
+        if not self._printer:
+            return False
+        return self._run_async(self._printer.resume())
+
+    def set_print_speed(self, mode: int) -> bool:
+        if not self._printer:
+            return False
+        level_map = {1: "silent", 2: "balanced", 3: "sport", 4: "ludicrous"}
+        speed_mode = level_map.get(mode, "balanced")
+        return self._run_async(self._printer.set_print_speed(speed_mode))
+
+    def set_nozzle_temperature(self, target: float, nozzle: int = 0) -> bool:
+        if not self._printer:
+            return False
+        return self._run_async(self._printer.set_temperatures(nozzle=target))
+
+    def set_bed_temperature(self, target: float) -> bool:
+        if not self._printer:
+            return False
+        return self._run_async(self._printer.set_temperatures(bed=target))
+
+    def set_chamber_temperature(self, target: float) -> bool:
+        if not self._printer:
+            return False
+        return self._run_async(self._printer.set_temperatures(chamber=target))
+
+    def set_fan_speed(self, fan_id: int, pwm_speed: int) -> bool:
+        if not self._printer:
+            return False
+        speed_pct = round(pwm_speed * 100 / 255)
+        if fan_id == 1:
+            return self._run_async(self._printer.set_fan_speed(model=speed_pct))
+        elif fan_id == 2:
+            return self._run_async(self._printer.set_fan_speed(auxiliary=speed_pct))
+        elif fan_id == 3:
+            return self._run_async(self._printer.set_fan_speed(chamber=speed_pct))
+        return False
+
+    def set_chamber_light(self, on: bool) -> bool:
+        if not self._printer:
+            return False
+        if hasattr(self._printer, "_cc2_request"):
+            status = 1 if on else 0
+            return self._run_async(self._printer._cc2_request(1029, {"status": status}))
+        return False
+
+    def send_gcode(self, gcode_string: str) -> bool:
+        if not self._printer:
+            return False
+        
+        # CC2 supports HOME_AXES (1026) and MOVE_AXES (1027)
+        if hasattr(self._printer, "_cc2_request"):
+            if "G28" in gcode_string:
+                return self._run_async(self._printer._cc2_request(1026, {}))
+            elif "G1" in gcode_string and "Z" in gcode_string:
+                import re
+                match = re.search(r"Z\s*(-?\d+(\.\d+)?)", gcode_string)
+                if match:
+                    distance = float(match.group(1))
+                    return self._run_async(self._printer._cc2_request(1027, {"axis": "Z", "step": distance}))
+        return False
+
+    def request_status_update(self) -> bool:
+        if not self._printer:
+            return False
+        return self._run_async(self._printer.status())
+
+    def set_xcam_option(self, *args, **kwargs) -> bool:
+        return False
+
+    def set_ams_filament_backup(self, enabled: bool) -> bool:
+        if not self._printer:
+            return False
+        return self._run_async(self._printer.set_auto_refill(enabled))
+
+    def start_calibration(self, *args, **kwargs) -> bool:
+        return False
+
+    def ams_set_filament_setting(self, *args, **kwargs) -> bool:
+        return False
+
+    def extrusion_cali_sel(self, *args, **kwargs) -> bool:
+        return False
+
+    def extrusion_cali_set(self, *args, **kwargs) -> bool:
+        return False
+
+    def reset_ams_slot(self, *args, **kwargs) -> bool:
+        return False
+
+    def clear_hms_errors(self) -> bool:
+        return False
+
+    def skip_objects(self, *args, **kwargs) -> bool:
+        return False
+
+    def ams_refresh_tray(self, *args, **kwargs) -> tuple[bool, str]:
+        return False, "Not supported"
+
+    def ams_load_filament(self, *args, **kwargs) -> bool:
+        return False
+
+    def ams_unload_filament(self) -> bool:
+        return False
+
+    def execute_hms_action(self, *args, **kwargs) -> bool:
+        return False
+
+    def check_staleness(self) -> bool:
+        return self.state.connected
+

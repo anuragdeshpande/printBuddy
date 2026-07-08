@@ -32,6 +32,10 @@ python-dotenv>=1.2.2
 paho-mqtt>=2.0.0
 aioftp>=0.22.0
 
+# Elegoo Printer Support
+pycentauri>=0.1.0
+
+
 # Virtual Printer (emulates Bambu printer for slicer uploads)
 pyftpdlib>=2.0.0
 # 46.x line has GHSA-537c-gmf6-5ccf; 48.0.1 is the fix release. Upstream's

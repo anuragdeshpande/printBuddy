@@ -9,8 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.models.printer import Printer
 from backend.app.services.bambu_mqtt import BambuMQTTClient, MQTTLogEntry, PrinterState, get_stage_name
+from backend.app.services.elegoo_client import ElegooCentauriClient, is_elegoo_model
 
 logger = logging.getLogger(__name__)
+
 
 # Models that have a real chamber temperature sensor
 # Based on Home Assistant Bambu Lab integration
@@ -555,21 +557,38 @@ class PrinterManager:
             if self._on_drying_complete:
                 self._schedule_async(self._on_drying_complete(printer_id, ams_id))
 
-        client = BambuMQTTClient(
-            ip_address=printer.ip_address,
-            serial_number=printer.serial_number,
-            access_code=printer.access_code,
-            model=printer.model,
-            on_state_change=on_state_change,
-            on_print_start=on_print_start,
-            on_print_complete=on_print_complete,
-            on_ams_change=on_ams_change,
-            on_layer_change=on_layer_change,
-            on_bed_temp_update=on_bed_temp_update,
-            on_drying_complete=on_drying_complete,
-            on_print_running_observed=on_print_running_observed,
-            on_finish_photo_moment=on_finish_photo_moment,
-        )
+        if is_elegoo_model(printer.model):
+            client = ElegooCentauriClient(
+                ip_address=printer.ip_address,
+                serial_number=printer.serial_number,
+                access_code=printer.access_code,
+                model=printer.model,
+                on_state_change=on_state_change,
+                on_print_start=on_print_start,
+                on_print_complete=on_print_complete,
+                on_ams_change=on_ams_change,
+                on_layer_change=on_layer_change,
+                on_bed_temp_update=on_bed_temp_update,
+                on_drying_complete=on_drying_complete,
+                on_print_running_observed=on_print_running_observed,
+                on_finish_photo_moment=on_finish_photo_moment,
+            )
+        else:
+            client = BambuMQTTClient(
+                ip_address=printer.ip_address,
+                serial_number=printer.serial_number,
+                access_code=printer.access_code,
+                model=printer.model,
+                on_state_change=on_state_change,
+                on_print_start=on_print_start,
+                on_print_complete=on_print_complete,
+                on_ams_change=on_ams_change,
+                on_layer_change=on_layer_change,
+                on_bed_temp_update=on_bed_temp_update,
+                on_drying_complete=on_drying_complete,
+                on_print_running_observed=on_print_running_observed,
+                on_finish_photo_moment=on_finish_photo_moment,
+            )
 
         client.connect()
         self._clients[printer_id] = client
@@ -850,6 +869,49 @@ class PrinterManager:
         original synchronous teardown produced the #1445 "Docker container
         hangs" symptom on P1S when called from POST /printers/.
         """
+        # Check if it's an Elegoo printer by checking ports 1883 and 3030
+        is_elegoo = False
+        try:
+            _, writer = await asyncio.wait_for(
+                asyncio.open_connection(ip_address, 1883), timeout=1.5
+            )
+            writer.close()
+            await writer.wait_closed()
+            is_elegoo = True
+        except Exception:
+            try:
+                _, writer = await asyncio.wait_for(
+                    asyncio.open_connection(ip_address, 3030), timeout=1.5
+                )
+                writer.close()
+                await writer.wait_closed()
+                is_elegoo = True
+            except Exception:
+                pass
+
+        if is_elegoo:
+            from pycentauri import connect_auto
+            try:
+                printer = await connect_auto(
+                    ip_address,
+                    access_code=access_code,
+                    connect_timeout=self.PROBE_TIMEOUT_SECONDS
+                )
+                try:
+                    attrs = await printer.attributes()
+                    model_name = attrs.machine_name or "CC2"
+                except Exception:
+                    model_name = "CC2"
+                finally:
+                    await printer.close()
+                return {
+                    "success": True,
+                    "state": "IDLE",
+                    "model": model_name
+                }
+            except Exception as e:
+                logger.warning("Failed to connect to Elegoo printer during connection test: %s", e)
+
         client = BambuMQTTClient(
             ip_address=ip_address,
             serial_number=serial_number,

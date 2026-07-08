@@ -57,6 +57,12 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --root-user-action=ignore --upgrade 'pip>=26.1' \
  && pip install --root-user-action=ignore -r requirements.txt
 
+# Support local pycentauri workspace during custom docker builds
+COPY pycentauri/ /app/pycentauri/
+RUN if [ -d "/app/pycentauri" ]; then pip install --no-cache-dir /app/pycentauri; fi
+
+
+
 # Copy backend
 COPY backend/ ./backend/
 
