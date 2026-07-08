@@ -116,7 +116,7 @@ import { FileUploadModal } from '../components/FileUploadModal';
 import { PrintModal } from '../components/PrintModal';
 import { PrinterInfoModal } from '../components/PrinterInfoModal';
 import { getAmsLabel, getGlobalTrayId, getFillBarColor, getSpoolmanFillLevel, getFallbackSpoolTag, isBambuLabSpool } from '../utils/amsHelpers';
-import { getPrinterImage, getWifiStrength, filterCompatibleQueueItems } from '../utils/printer';
+import { getPrinterImage, getWifiStrength, filterCompatibleQueueItems, isElegooModel } from '../utils/printer';
 import { FilamentSlotCircle } from '../components/FilamentSlotCircle';
 import { Collapsible } from '../components/Collapsible';
 import { ConnectionDiagnosticModal, DiagnosticChecklist } from '../components/ConnectionDiagnostic';
@@ -3110,7 +3110,7 @@ function PrinterCard({
   return (
     <Card
       id={`printer-card-${printer.id}`}
-      className={`relative flex h-full flex-col ${isSelected ? 'ring-2 ring-bambu-green' : ''} ${selectionMode || viewMode === 'compact' ? 'cursor-pointer' : ''}`}
+      className={`relative flex h-full flex-col hex-card honeycomb-bg ${isSelected ? 'ring-2 ring-bambu-green' : ''} ${selectionMode || viewMode === 'compact' ? 'cursor-pointer' : ''}`}
       onClick={handleCardClick}
       onDragEnter={handleCardDragEnter}
       onDragOver={handleCardDragOver}
@@ -3179,7 +3179,7 @@ function PrinterCard({
                     <h3 className={`font-semibold text-white ${getTitleSize()}`}>{printer.name}</h3>
                     {/* Connection indicator dot for compact mode */}
                     {viewMode === 'compact' && (() => {
-                      const hmsErrors = status?.connected && status.hms_errors ? filterKnownHMSErrors(status.hms_errors) : [];
+                      const hmsErrors = status?.connected && status.hms_errors && !isElegooModel(printer.model) ? filterKnownHMSErrors(status.hms_errors) : [];
                       const hasSevere = hmsErrors.some(e => e.severity <= 2);
                       const hasWarning = hmsErrors.length > 0;
                       const pipColor = !status?.connected
@@ -3250,7 +3250,7 @@ function PrinterCard({
                   maintenance UI. */}
               {printer.is_active === false ? (
                 <span
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400"
+                  className="flex items-center gap-1.5 px-3 py-1 hex-badge text-xs bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400"
                   title={t('printers.maintenance.subtitle')}
                 >
                   <Wrench className="w-3 h-3" />
@@ -3258,7 +3258,7 @@ function PrinterCard({
                 </span>
               ) : (
                 <span
-                  className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs ${
+                  className={`flex items-center gap-1.5 px-3 py-1 hex-badge text-xs ${
                     status?.connected
                       ? 'bg-status-ok/20 text-status-ok'
                       : 'bg-status-error/20 text-status-error'
@@ -3276,7 +3276,7 @@ function PrinterCard({
               {printer.is_active !== false && !status?.connected && (
                 <button
                   onClick={() => setShowDiagnostic(true)}
-                  className="flex items-center gap-1 px-2 py-1 rounded-full text-xs cursor-pointer bg-bambu-dark-tertiary text-bambu-gray hover:text-white transition-colors"
+                  className="flex items-center gap-1 px-3 py-1 hex-button text-xs cursor-pointer bg-bambu-dark-tertiary text-bambu-gray hover:text-white transition-colors"
                   title={t('diagnostic.runButton')}
                 >
                   <Stethoscope className="w-3 h-3" />
@@ -3286,7 +3286,7 @@ function PrinterCard({
               {/* Network connection indicator */}
               {status?.connected && status?.wired_network && (
                 <span
-                  className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-status-ok/20 text-status-ok"
+                  className="flex items-center gap-1 px-3 py-1 hex-badge text-xs bg-status-ok/20 text-status-ok"
                   title={t('printers.connection.ethernet', 'Ethernet')}
                 >
                   <Cable className="w-3 h-3" />
@@ -3296,7 +3296,7 @@ function PrinterCard({
               {/* WiFi signal indicator */}
               {status?.connected && !status?.wired_network && wifiSignal != null && (
                 <span
-                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
+                  className={`flex items-center gap-1 px-3 py-1 hex-badge text-xs ${
                     wifiSignal >= -50
                       ? 'bg-status-ok/20 text-status-ok'
                       : wifiSignal >= -60
@@ -3314,12 +3314,12 @@ function PrinterCard({
                 </span>
               )}
               {/* HMS Status Indicator */}
-              {status?.connected && (() => {
+              {status?.connected && !isElegooModel(printer.model) && (() => {
                 const knownErrors = status.hms_errors ? filterKnownHMSErrors(status.hms_errors) : [];
                 return (
                   <button
                     onClick={() => setShowHMSModal(true)}
-                    className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity ${
+                    className={`flex items-center gap-1 px-3 py-1 hex-button text-xs cursor-pointer hover:opacity-80 transition-opacity ${
                       knownErrors.length > 0
                         ? knownErrors.some(e => e.severity <= 2)
                           ? 'bg-status-error/20 text-status-error'
@@ -3337,7 +3337,7 @@ function PrinterCard({
               {maintenanceInfo && (
                 <button
                   onClick={() => navigate('/maintenance')}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity ${
+                  className={`flex items-center gap-1 px-3 py-1 hex-button text-xs cursor-pointer hover:opacity-80 transition-opacity ${
                     maintenanceInfo.due_count > 0
                       ? 'bg-status-error/20 text-status-error'
                       : maintenanceInfo.warning_count > 0
@@ -3360,7 +3360,7 @@ function PrinterCard({
               {queueCount > 0 && (
                 <button
                   onClick={() => navigate('/queue')}
-                  className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 hover:opacity-80 transition-opacity"
+                  className="flex items-center gap-1 px-3 py-1 hex-button text-xs bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 hover:opacity-80 transition-opacity"
                   title={t('printers.queue.inQueue', { count: queueCount })}
                 >
                   <Layers className="w-3 h-3" />
@@ -3371,7 +3371,7 @@ function PrinterCard({
               {checkPrinterFirmware && firmwareInfo?.current_version && firmwareInfo?.latest_version ? (
                 <button
                   onClick={() => setShowFirmwareModal(true)}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs hover:opacity-80 transition-opacity ${
+                  className={`flex items-center gap-1 px-3 py-1 hex-button text-xs hover:opacity-80 transition-opacity ${
                     firmwareInfo.update_available
                       ? 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400'
                       : 'bg-status-ok/20 text-status-ok'
@@ -3386,7 +3386,7 @@ function PrinterCard({
                   {firmwareInfo.current_version}
                 </button>
               ) : status?.firmware_version ? (
-                <span className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-bambu-dark-tertiary/50 text-bambu-gray">
+                <span className="flex items-center gap-1 px-3 py-1 hex-badge text-xs bg-bambu-dark-tertiary/50 text-bambu-gray">
                   {status.firmware_version}
                 </span>
               ) : null}
@@ -3395,7 +3395,7 @@ function PrinterCard({
                   P1S has an enclosure door but no sensor; P1P has no enclosure at all. */}
               {status?.connected && ['X1C', 'X1', 'X1E', 'X2D', 'P2S', 'H2D', 'H2D Pro', 'H2C', 'H2S'].includes(printer.model ?? '') && (
                 <span
-                  className={`flex items-center px-2 py-1 rounded-full text-xs ${
+                  className={`flex items-center px-3 py-1 hex-badge text-xs ${
                     status.door_open
                       ? 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400'
                       : 'bg-status-ok/20 text-status-ok'
@@ -3523,7 +3523,7 @@ function PrinterCard({
             {/* Compact: Simple status bar */}
             {viewMode === 'compact' ? (
               (() => {
-                const hmsErrors = status.hms_errors ? filterKnownHMSErrors(status.hms_errors) : [];
+                const hmsErrors = status.hms_errors && !isElegooModel(printer.model) ? filterKnownHMSErrors(status.hms_errors) : [];
                 const hasProblem = status.state === 'FAILED' || hmsErrors.length > 0;
                 const compactProgress = status.state === 'RUNNING' || status.state === 'PAUSE'
                   ? Math.max(0, Math.min(100, status.progress || 0))

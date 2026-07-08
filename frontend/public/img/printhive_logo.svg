@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1129 427" width="100%" height="100%">
+  <!-- Definition of gradients or filters -->
+  <defs>
+    <linearGradient id="brand-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fb923c" />
+      <stop offset="100%" stop-color="#ea580c" />
+    </linearGradient>
+  </defs>
+
+  <!-- Left: Icon -->
+  <g transform="translate(0, 0)">
+    <!-- Hexagon Outer Border -->
+    <polygon points="200,53 338,133 338,293 200,373 62,293 62,133" fill="none" stroke="#f97316" stroke-width="24" stroke-linejoin="round"/>
+    
+    <!-- Isometric Cube Faces -->
+    <!-- Top Face -->
+    <polygon points="200,223 269,183 200,143 131,183" fill="#fb923c"/>
+    <!-- Left Face -->
+    <polygon points="200,223 131,183 131,263 200,303" fill="#ea580c"/>
+    <!-- Right Face -->
+    <polygon points="200,223 269,183 269,263 200,303" fill="#f97316"/>
+    
+    <!-- Nozzle and Filament -->
+    <polygon points="190,90 210,90 200,110" fill="#ffffff"/>
+    <line x1="200" y1="110" x2="200" y2="143" stroke="#fb923c" stroke-width="6" stroke-dasharray="6 4"/>
+  </g>
+
+  <!-- Right: Typography -->
+  <text x="400" y="265" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="145" fill="#ffffff" letter-spacing="-2">Print<tspan fill="#f97316">Hive</tspan></text>
+</svg>

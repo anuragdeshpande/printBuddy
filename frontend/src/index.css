@@ -530,3 +530,30 @@ body {
     opacity: 1;
   }
 }
+
+/* PrintHive Hexagonal Styling and Honeycomb Utilities */
+.hex-badge {
+  clip-path: polygon(10% 0%, 90% 0%, 100% 50%, 90% 100%, 10% 100%, 0% 50%);
+}
+
+.hex-button {
+  clip-path: polygon(10% 0%, 90% 0%, 100% 50%, 90% 100%, 10% 100%, 0% 50%);
+  transition: all 0.2s ease-in-out;
+}
+.hex-button:hover {
+  filter: brightness(1.1);
+}
+
+.hex-card {
+  clip-path: polygon(0% 12px, 12px 0%, 100% 0%, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0% 100%);
+}
+
+/* Subtle, elegant honeycomb pattern background */
+.honeycomb-bg {
+  background-size: 30px 52px;
+  background-image: 
+    radial-gradient(circle at 100% 150%, var(--bg-secondary) 24%, var(--bg-tertiary) 25%, var(--bg-tertiary) 28%, transparent 29%, transparent),
+    radial-gradient(circle at 0% 150%, var(--bg-secondary) 24%, var(--bg-tertiary) 25%, var(--bg-tertiary) 28%, transparent 29%, transparent),
+    radial-gradient(circle at 50% 100%, var(--bg-secondary) 24%, var(--bg-tertiary) 25%, var(--bg-tertiary) 28%, transparent 29%, transparent);
+}
+

@@ -6,6 +6,7 @@ import { Layers, Clock, Timer, Printer } from 'lucide-react';
 import { api, ApiError, withStreamToken } from '../api/client';
 import type { PrinterStatus } from '../api/client';
 import { formatDuration, formatETA, type TimeFormat } from '../utils/date';
+import { PrintHiveLogo } from '../components/PrintHiveLogo';
 
 type TFunction = (key: string, options?: Record<string, unknown>) => string;
 
@@ -201,7 +202,7 @@ export function StreamOverlayPage() {
   useEffect(() => {
     document.title = printer ? `${printer.name} - ${t('streamOverlay.title')}` : t('streamOverlay.title');
     return () => {
-      document.title = 'Bambuddy';
+      document.title = 'PrintHive';
     };
   }, [printer, t]);
 
@@ -246,18 +247,14 @@ export function StreamOverlayPage() {
         />
       )}
 
-      {/* Bambuddy logo - top right */}
+      {/* PrintHive logo - top right */}
       <a
-        href="https://github.com/maziggy/bambuddy"
+        href="https://github.com/anuragdeshpande/printBuddy"
         target="_blank"
         rel="noopener noreferrer"
         className="absolute top-4 right-4 z-10"
       >
-        <img
-          src="/img/bambuddy_logo_dark_transparent.png"
-          alt="Bambuddy"
-          className={`${sizes.logoHeight} object-contain drop-shadow-lg hover:scale-105 transition-transform`}
-        />
+        <PrintHiveLogo className={`${sizes.logoHeight} object-contain drop-shadow-lg hover:scale-105 transition-transform`} showText={true} />
       </a>
 
       {/* Status overlay - bottom */}
