@@ -2844,6 +2844,11 @@ async def on_print_start(printer_id: int, data: dict):
         seen = set()
         possible_names = [x for x in possible_names if not (x in seen or seen.add(x))]
 
+        from backend.app.services.elegoo_client import is_elegoo_model
+        if printer and is_elegoo_model(printer.model):
+            possible_names = []
+
+
         logger.info("Trying filenames: %s", possible_names)
 
         # Try to find and download the 3MF file
@@ -2934,7 +2939,7 @@ async def on_print_start(printer_id: int, data: dict):
 
         # If still not found, try listing directories to find matching file
         # Different printer models use different directory structures
-        if not downloaded_filename and (filename or subtask_name):
+        if not downloaded_filename and (filename or subtask_name) and not is_elegoo_model(printer.model):
             search_term = (subtask_name or filename).lower().replace(".gcode", "").replace(".3mf", "")
             logger.info("Direct FTP download failed, searching directories for '%s'", search_term)
             search_dirs = ["/cache", "/model", "/data", "/data/Metadata", "/"]

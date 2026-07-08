@@ -1,11 +1,11 @@
 services:
-  bambuddy:
-    image: ghcr.io/maziggy/bambuddy:latest
+  printhive:
+    image: ghcr.io/anuragdeshpande/printhive:latest
     build: .
     # Usage:
     #   docker compose up -d          → pulls pre-built image from ghcr.io
     #   docker compose up -d --build  → builds locally from source
-    container_name: bambuddy
+    container_name: printhive
     # File ownership inside the data and logs volumes is normalised by the
     # entrypoint at startup (chowns to PUID:PGID and drops privileges via
     # gosu before running the app). Override PUID / PGID below to match
@@ -60,8 +60,8 @@ services:
     # forgo discovery (add printers by IP) can stay on bridge with the
     # narrowed range above.
     volumes:
-      - bambuddy_data:/app/data
-      - bambuddy_logs:/app/logs
+      - printhive_data:/app/data
+      - printhive_logs:/app/logs
       #
       # OPTIONAL — only needed if you ALSO run a native install of Bambuddy
       # on the same host and want both installs to share the same Virtual
@@ -152,7 +152,7 @@ services:
   # Uncomment to run Postgres alongside Bambuddy (or use an external Postgres host)
   #postgres:
   #  image: postgres:16-alpine
-  #  container_name: bambuddy-db
+  #  container_name: printhive-db
   #  restart: unless-stopped
   #  environment:
   #    POSTGRES_USER: bambuddy
@@ -164,6 +164,6 @@ services:
   #    - "5432:5432"
 
 volumes:
-  bambuddy_data:
-  bambuddy_logs:
+  printhive_data:
+  printhive_logs:
   #bambuddy_pgdata:
