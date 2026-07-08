@@ -945,6 +945,43 @@ def clear_cover_cache(printer_id: int) -> None:
     _cover_404_cache.pop(printer_id, None)
 
 
+def extract_gcode_thumbnail(gcode_bytes: bytes) -> bytes | None:
+    import re
+    import base64
+    try:
+        gcode_text = gcode_bytes.decode('utf-8', errors='ignore')
+    except Exception:
+        return None
+    matches = list(re.finditer(
+        r'; thumbnail(?:_\w+)? begin (\d+)x(\d+) \d+\r?\n(.*?)\r?\n; thumbnail(?:_\w+)? end',
+        gcode_text,
+        re.DOTALL | re.IGNORECASE
+    ))
+    best_size = -1
+    best_data = None
+    for m in matches:
+        try:
+            w, h, block = int(m.group(1)), int(m.group(2)), m.group(3)
+            size = w * h
+            if size > best_size:
+                best_size = size
+                best_data = block
+        except Exception:
+            continue
+            
+    if best_data:
+        lines = []
+        for line in best_data.splitlines():
+            cleaned = line.strip().lstrip(';').strip()
+            if cleaned:
+                lines.append(cleaned)
+        try:
+            return base64.b64decode("".join(lines))
+        except Exception:
+            pass
+    return None
+
+
 @router.get("/{printer_id}/cover")
 async def get_printer_cover(
     printer_id: int,
@@ -971,6 +1008,49 @@ async def get_printer_cover(
     subtask_name = state.subtask_name
     if not subtask_name:
         raise HTTPException(404, f"No subtask_name in printer state (state={state.state})")
+
+    from backend.app.services.elegoo_client import is_elegoo_model
+    if is_elegoo_model(printer.model):
+        import httpx
+        clean_subtask = subtask_name.lstrip("/")
+        parts = clean_subtask.split("/")
+        if len(parts) > 1 and parts[0] in ("local", "usb", "udisk"):
+            simple_filename = "/".join(parts[1:])
+            folder = parts[0]
+        else:
+            simple_filename = clean_subtask
+            folder = "local"
+            
+        filename_no_ext = simple_filename.rsplit(".", 1)[0]
+        
+        candidates = [
+            f"http://{printer.ip_address}/{folder}/.thumbs/{filename_no_ext}.png",
+            f"http://{printer.ip_address}/{folder}/thumbs/{filename_no_ext}.png",
+            f"http://{printer.ip_address}/{folder}/.thumbs/{filename_no_ext}_300x300.png",
+        ]
+        
+        async with httpx.AsyncClient(timeout=10.0) as http_client:
+            for cand_url in candidates:
+                try:
+                    res = await http_client.get(cand_url)
+                    if res.status_code == 200:
+                        return Response(content=res.content, media_type="image/png")
+                except Exception:
+                    pass
+            
+            gcode_url = f"http://{printer.ip_address}/{folder}/{simple_filename}"
+            try:
+                headers = {"Range": "bytes=0-1048576"}
+                response = await http_client.get(gcode_url, headers=headers)
+                if response.status_code in (200, 206):
+                    thumbnail_bytes = extract_gcode_thumbnail(response.content)
+                    if thumbnail_bytes:
+                        return Response(content=thumbnail_bytes, media_type="image/png")
+            except Exception as e:
+                logger.warning("Failed to extract Elegoo thumbnail via range request: %s", e)
+                
+        raise HTTPException(404, f"No cover/thumbnail available for Elegoo printer print: {subtask_name}")
+
 
     # Resolve the active plate. Precedence (#1166):
     #   1. The plate Bambuddy dispatched (authoritative when we sent the print)
@@ -1209,6 +1289,76 @@ async def list_printer_files(
     if not printer:
         raise HTTPException(404, "Printer not found")
 
+    from backend.app.services.elegoo_client import is_elegoo_model
+    if is_elegoo_model(printer.model):
+        from backend.app.services.printer_manager import printer_manager
+        client = printer_manager.get_client(printer_id)
+        if not client or not client.connected:
+            raise HTTPException(503, "Printer is offline or client not connected")
+
+        p = path.lower()
+        files = []
+        
+        if "timelapse" in p or "ips" in p:
+            try:
+                mid = await client._printer.wait_for_mainboard()
+                res_history = await client._printer._request(320, {}, mid)
+                history_ids = res_history.raw.get("Data", {}).get("Data", {}).get("HistoryData", [])
+                if history_ids:
+                    chunk_size = 20
+                    for i in range(0, len(history_ids), chunk_size):
+                        chunk = history_ids[i:i+chunk_size]
+                        res_details = await client._printer._request(321, {"Id": chunk}, mid)
+                        details = res_details.raw.get("Data", {}).get("Data", {}).get("HistoryDetailList", [])
+                        for d in details:
+                            if d.get("TimeLapseVideoStatus") == 1:
+                                video_url = d.get("TimeLapseVideoUrl") or ""
+                                video_name = video_url.split("/")[-1] if "/" in video_url else video_url
+                                if not video_name:
+                                    continue
+                                from datetime import datetime, timezone
+                                end_time = d.get("EndTime", 0)
+                                mtime = datetime.fromtimestamp(end_time, timezone.utc) if end_time else None
+                                
+                                files.append({
+                                    "name": video_name,
+                                    "is_directory": False,
+                                    "size": 0,
+                                    "path": f"/timelapse/{video_name}",
+                                    "mtime": mtime
+                                })
+            except Exception as e:
+                logger.error("Failed to query Elegoo timelapses: %s", e)
+        else:
+            try:
+                mid = await client._printer.wait_for_mainboard()
+                target_url = "/usb" if "usb" in p or "udisk" in p else "/local"
+                res = await client._printer._request(258, {"Url": target_url}, mid)
+                file_list = res.raw.get("Data", {}).get("Data", {}).get("FileList", [])
+                for f in file_list:
+                    name = f.get("name") or ""
+                    if "/" in name:
+                        name = name.split("/")[-1]
+                    
+                    from datetime import datetime, timezone
+                    ctime = f.get("CreateTime", 0)
+                    mtime = datetime.fromtimestamp(ctime, timezone.utc) if ctime else None
+                    
+                    files.append({
+                        "name": name,
+                        "is_directory": False,
+                        "size": f.get("FileSize", 0),
+                        "path": f"{target_url}/{name}",
+                        "mtime": mtime
+                    })
+            except Exception as e:
+                logger.error("Failed to query Elegoo file list: %s", e)
+
+        return {
+            "path": path,
+            "files": files,
+        }
+
     files = await list_files_async(printer.ip_address, printer.access_code, path, printer_model=printer.model)
 
     # Add full path to each file
@@ -1234,7 +1384,37 @@ async def download_printer_file(
     if not printer:
         raise HTTPException(404, "Printer not found")
 
-    data = await download_file_bytes_async(printer.ip_address, printer.access_code, path, printer_model=printer.model)
+    from backend.app.services.elegoo_client import is_elegoo_model
+    if is_elegoo_model(printer.model):
+        p = path.lower()
+        if "timelapse" in p or "ips" in p:
+            filename = path.split("/")[-1]
+            url = f"http://{printer.ip_address}/local/aic_tlp/{filename}"
+        else:
+            clean_path = path.lstrip("/")
+            url = f"http://{printer.ip_address}/{clean_path}"
+
+        import httpx
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as http_client:
+                logger.info("Downloading Elegoo file via HTTP from %s", url)
+                res = await http_client.get(url)
+                if res.status_code == 200:
+                    data = res.content
+                elif res.status_code == 500 and "busy" in res.text.lower():
+                    raise HTTPException(
+                        status_code=503,
+                        detail="The printer storage is currently locked/busy (likely due to an active print). Please stop printing or wait until the print finishes to download files."
+                    )
+                else:
+                    logger.error("Failed to download Elegoo file %s: HTTP %s", url, res.status_code)
+                    data = None
+        except httpx.HTTPError as e:
+            logger.error("HTTP error downloading Elegoo file: %s", e)
+            data = None
+    else:
+        data = await download_file_bytes_async(printer.ip_address, printer.access_code, path, printer_model=printer.model)
+        
     if data is None:
         raise HTTPException(404, f"File not found: {path}")
 
