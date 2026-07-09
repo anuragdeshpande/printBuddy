@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="static/img/printhive_logo.png" alt="PrintHive Logo" width="300">
+  <img src="static/img/printhive_logo.svg" alt="PrintHive Logo" width="300">
 </p>
 
 <h1 align="center">PrintHive</h1>
