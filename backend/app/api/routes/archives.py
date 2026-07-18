@@ -2247,10 +2247,10 @@ async def delete_timelapse(
 @router.post("/{archive_id}/timelapse/scan")
 async def scan_timelapse(
     archive_id: int,
-    db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_UPDATE_ALL),
 ):
     """Scan printer for timelapse matching this archive and attach it."""
+    from backend.app.core.database import async_session
     from backend.app.models.printer import Printer
     from backend.app.services.bambu_ftp import (
         download_file_bytes_async,
@@ -2259,22 +2259,27 @@ async def scan_timelapse(
         with_ftp_retry,
     )
 
-    service = ArchiveService(db)
-    archive = await service.get_archive(archive_id)
-    if not archive:
-        raise HTTPException(404, "Archive not found")
+    # Read the archive + printer in a short session and release the pooled DB
+    # connection BEFORE the FTP scan/download below — a timelapse pull walks
+    # several directories and fetches a 100MB+ video, so holding Depends(get_db)
+    # across it pinned one connection idle-in-transaction for minutes (#2572).
+    # Scalar columns stay readable on the detached rows (expire_on_commit=False);
+    # the attach at the end runs in its own fresh short session.
+    async with async_session() as db:
+        archive = await ArchiveService(db).get_archive(archive_id)
+        if not archive:
+            raise HTTPException(404, "Archive not found")
 
-    if archive.timelapse_path:
-        return {"status": "exists", "message": "Timelapse already attached"}
+        if archive.timelapse_path:
+            return {"status": "exists", "message": "Timelapse already attached"}
 
-    if not archive.printer_id:
-        raise HTTPException(400, "Archive has no associated printer")
+        if not archive.printer_id:
+            raise HTTPException(400, "Archive has no associated printer")
 
-    # Get printer
-    result = await db.execute(select(Printer).where(Printer.id == archive.printer_id))
-    printer = result.scalar_one_or_none()
-    if not printer:
-        raise HTTPException(404, "Printer not found")
+        result = await db.execute(select(Printer).where(Printer.id == archive.printer_id))
+        printer = result.scalar_one_or_none()
+        if not printer:
+            raise HTTPException(404, "Printer not found")
 
     # Get base name from archive filename (without .3mf extension)
     base_name = Path(archive.filename).stem
@@ -2413,8 +2418,9 @@ async def scan_timelapse(
     if not timelapse_data:
         raise HTTPException(500, "Failed to download timelapse")
 
-    # Attach timelapse to archive
-    success = await service.attach_timelapse(archive_id, timelapse_data, matching_file["name"])
+    # Attach in a fresh short session (the read session was released before FTP).
+    async with async_session() as db:
+        success = await ArchiveService(db).attach_timelapse(archive_id, timelapse_data, matching_file["name"])
 
     if not success:
         raise HTTPException(500, "Failed to attach timelapse")
@@ -2430,10 +2436,10 @@ async def scan_timelapse(
 async def select_timelapse(
     archive_id: int,
     filename: str = Query(..., description="Timelapse filename to attach"),
-    db: AsyncSession = Depends(get_db),
     _: User | None = RequirePermissionIfAuthEnabled(Permission.ARCHIVES_UPDATE_ALL),
 ):
     """Manually select a timelapse from the printer to attach."""
+    from backend.app.core.database import async_session
     from backend.app.models.printer import Printer
     from backend.app.services.bambu_ftp import (
         download_file_bytes_async,
@@ -2442,18 +2448,21 @@ async def select_timelapse(
         with_ftp_retry,
     )
 
-    service = ArchiveService(db)
-    archive = await service.get_archive(archive_id)
-    if not archive:
-        raise HTTPException(404, "Archive not found")
+    # Read the archive + printer in a short session and release the pooled DB
+    # connection BEFORE the FTP scan/download below (#2572); scalars stay
+    # readable after close (expire_on_commit=False), the attach reopens one.
+    async with async_session() as db:
+        archive = await ArchiveService(db).get_archive(archive_id)
+        if not archive:
+            raise HTTPException(404, "Archive not found")
 
-    if not archive.printer_id:
-        raise HTTPException(400, "Archive has no associated printer")
+        if not archive.printer_id:
+            raise HTTPException(400, "Archive has no associated printer")
 
-    result = await db.execute(select(Printer).where(Printer.id == archive.printer_id))
-    printer = result.scalar_one_or_none()
-    if not printer:
-        raise HTTPException(404, "Printer not found")
+        result = await db.execute(select(Printer).where(Printer.id == archive.printer_id))
+        printer = result.scalar_one_or_none()
+        if not printer:
+            raise HTTPException(404, "Printer not found")
 
     # Find the file on the printer
     files = []
@@ -2502,7 +2511,9 @@ async def select_timelapse(
     if not timelapse_data:
         raise HTTPException(500, "Failed to download timelapse")
 
-    success = await service.attach_timelapse(archive_id, timelapse_data, filename)
+    # Attach in a fresh short session (the read session was released before FTP).
+    async with async_session() as db:
+        success = await ArchiveService(db).attach_timelapse(archive_id, timelapse_data, filename)
     if not success:
         raise HTTPException(500, "Failed to attach timelapse")
 
