@@ -12,8 +12,8 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from urllib.parse import urlparse
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import delete, or_, select, text
 
@@ -6830,6 +6830,127 @@ async def serve_frontend():
 # without ever knowing why. ``no-cache`` (revalidate every time, but a
 # 304 is cheap) is the correct setting for an SPA's entry HTML.
 _HTML_CACHE_HEADERS = {"Cache-Control": "no-cache, must-revalidate"}
+
+
+# ============================================================================
+# Elegoo Link API Protocol Endpoints for OrcaSlicer Compatibility
+# ============================================================================
+
+
+@app.api_route("/system/info", methods=["GET", "HEAD"])
+async def elegoo_link_system_info():
+    """Elegoo Link device info endpoint expected by OrcaSlicer."""
+    return JSONResponse(
+        {
+            "code": 0,
+            "msg": "ok",
+            "vendor": "ELEGOO",
+            "data": {
+                "sn": "20P90A391800002",
+                "name": "Virtual Centauri Carbon",
+                "vendor": "ELEGOO",
+                "firmware_version": "V1.0.0",
+                "model": "Centauri Carbon",
+            },
+        }
+    )
+
+
+@app.api_route("/uploadFile/upload", methods=["GET", "HEAD"])
+@app.api_route("/upload", methods=["GET", "HEAD"])
+async def elegoo_link_test_get():
+    """Elegoo Link status test endpoint for OrcaSlicer connection test."""
+    return JSONResponse(
+        {
+            "code": "000000",
+            "msg": "ok",
+            "service": "PrintHive ElegooLink Virtual Printer",
+            "vendor": "ELEGOO",
+            "brand": "ELEGOO",
+        }
+    )
+
+
+@app.api_route("/uploadFile/upload", methods=["POST", "PUT"])
+@app.api_route("/upload", methods=["POST", "PUT"])
+@app.api_route("/api/upload", methods=["POST", "PUT"])
+async def elegoo_link_upload_handler(request: Request):
+    """Elegoo Link HTTP print file upload endpoint.
+
+    Handles both multipart form data and raw binary stream uploads sent by OrcaSlicer.
+    """
+    logger.info("Elegoo Link HTTP upload endpoint hit")
+
+    content_type = request.headers.get("content-type", "")
+    filename = request.headers.get("x-file-name") or "elegoo_print.gcode.3mf"
+    file_bytes = b""
+
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        uploaded_file = form.get("File") or form.get("file") or form.get("gcode")
+        if uploaded_file and hasattr(uploaded_file, "read"):
+            filename = getattr(uploaded_file, "filename", filename) or filename
+            file_bytes = await uploaded_file.read()
+        else:
+            file_bytes = await request.body()
+    else:
+        file_bytes = await request.body()
+
+    if not file_bytes:
+        return JSONResponse({"code": 400, "msg": "Empty file body"}, status_code=400)
+
+    safe_name = filename.replace("/", "_").replace("\\", "_")
+    temp_path = app_settings.archive_dir / "temp" / safe_name
+    temp_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path.write_bytes(file_bytes)
+
+    # Archive and queue print job for connected Elegoo printer
+    try:
+        async with async_session() as db:
+            from backend.app.models.print_queue import PrintQueueItem
+            from backend.app.models.printer import Printer
+            from backend.app.services.archive import ArchiveService
+            from backend.app.services.elegoo_client import is_elegoo_model
+
+            service = ArchiveService(db)
+            archive = await service.archive_print(
+                printer_id=None,
+                source_file=temp_path,
+                created_by_id=None,
+                print_data={"source": "elegoo_link", "filename": safe_name},
+            )
+
+            printers_stmt = select(Printer)
+            result = await db.execute(printers_stmt)
+            all_printers = result.scalars().all()
+            target_printer = next((p for p in all_printers if is_elegoo_model(p.model)), all_printers[0] if all_printers else None)
+
+            if archive and target_printer:
+                queue_item = PrintQueueItem(
+                    printer_id=target_printer.id,
+                    archive_id=archive.id,
+                    position=1,
+                    status="pending",
+                    manual_start=False,
+                )
+                db.add(queue_item)
+                await db.commit()
+                logger.info("Elegoo Link upload %s queued for printer %s", archive.print_name, target_printer.name)
+    except Exception as e:
+        logger.error("Failed to enqueue Elegoo Link upload %s: %s", safe_name, e)
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+    return JSONResponse(
+        {
+            "code": "000000",
+            "code_num": 0,
+            "msg": "ok",
+            "message": "success",
+            "vendor": "ELEGOO",
+            "data": {"filename": safe_name, "sn": "20P90A391800002"},
+        }
+    )
 
 
 @app.get("/health")
