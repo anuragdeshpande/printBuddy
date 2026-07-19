@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 from pycentauri import connect_auto, Printer
+from pycentauri.discovery import discover as elegoo_discover
 from pycentauri.models import Status, Attributes, CanvasStatus
 
 from backend.app.services.bambu_mqtt import PrinterState, NozzleInfo, PrintOptions
@@ -100,75 +101,70 @@ class ElegooCentauriClient:
             self.on_state_change(self.state)
 
     async def _async_connect(self):
+        # Discover the mainboard_id once so we can pass it to connect_auto.
+        # The CC1 printer only pushes its mainboard ID when idle/active — when
+        # paused or errored it is silent and any call that needs the ID (e.g.
+        # attributes(), watch() internally) will time out waiting for it.
+        # Passing mainboard_id= explicitly bypasses that wait entirely.
+        _cached_mainboard_id: str | None = None
+        try:
+            discovered = await elegoo_discover(timeout=3.0)
+            for d in discovered:
+                if d.host == self.ip_address and d.mainboard_id:
+                    _cached_mainboard_id = d.mainboard_id
+                    logger.info("Discovered Elegoo mainboard_id=%s for %s", _cached_mainboard_id, self.ip_address)
+                    break
+        except Exception as e:
+            logger.warning("Elegoo discovery failed for %s, will rely on printer push: %s", self.ip_address, e)
+
         while True:
-            proactive_rotate = False
             try:
                 logger.info("Connecting to Elegoo printer at %s", self.ip_address)
                 self._printer = await connect_auto(
                     self.ip_address,
                     access_code=self.access_code,
                     connect_timeout=5.0,
-                    enable_control=True
+                    enable_control=True,
+                    mainboard_id=_cached_mainboard_id,
                 )
                 self.state.connected = True
-                
-                # Fetch initial attributes to learn serial/version info
-                try:
-                    attrs = await self._printer.attributes()
-                    self.state.firmware_version = attrs.firmware_version
-                except Exception as e:
-                    logger.warning("Could not fetch Elegoo attributes: %s", e)
 
                 if self.on_state_change:
                     self.on_state_change(self.state)
 
                 # Iterate watch loop to receive telemetry pushes
-                start_time = asyncio.get_running_loop().time()
                 async for status in self._printer.watch():
                     self._update_state(status)
-                    
-                    # Proactively rotate connection every 50 seconds to avoid printer daemon timeouts
-                    if asyncio.get_running_loop().time() - start_time > 50.0:
-                        logger.info("Proactively rotating Elegoo connection at %s to maintain stability", self.ip_address)
-                        proactive_rotate = True
-                        break
 
             except asyncio.CancelledError:
                 logger.info("Connection task cancelled for Elegoo printer at %s", self.ip_address)
                 break
             except Exception as e:
-                if not proactive_rotate:
-                    logger.warning(
-                        "Connection lost or failed to connect to Elegoo printer at %s: %s. Retrying in 5s...",
-                        self.ip_address,
-                        e,
-                    )
-                    self.state.connected = False
-                    if self.on_state_change:
-                        self.on_state_change(self.state)
-                
+                logger.warning(
+                    "Connection lost or failed to connect to Elegoo printer at %s: %s. Retrying in 5s...",
+                    self.ip_address,
+                    e,
+                )
+                self.state.connected = False
+                if self.on_state_change:
+                    self.on_state_change(self.state)
+
                 if self._printer:
                     try:
                         await self._printer.close()
                     except Exception:
                         pass
                     self._printer = None
-                
-                if proactive_rotate:
-                    await asyncio.sleep(0.5)
-                else:
-                    await asyncio.sleep(5.0)
+
+                await asyncio.sleep(5.0)
                 continue
 
-            # Graceful proactive rotation cleanup - skip state.connected = False
             if self._printer:
                 try:
                     await self._printer.close()
                 except Exception:
                     pass
                 self._printer = None
-            
-            await asyncio.sleep(0.5)
 
 
 
