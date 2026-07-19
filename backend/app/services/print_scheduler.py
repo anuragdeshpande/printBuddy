@@ -656,6 +656,7 @@ class PrintScheduler:
         # Track reasons for skipping printers
         printers_busy = []
         printers_offline = []
+        printers_awaiting_clear = []
         printers_missing_filament: list[tuple[str, list[str]]] = []
         candidates: list[tuple[int, int]] = []  # (printer_id, color_match_count)
 
@@ -674,11 +675,15 @@ class PrintScheduler:
                 continue
 
             is_connected = printer_manager.is_connected(printer.id)
-            is_idle = self._is_printer_idle(printer.id, require_plate_clear) if is_connected else False
-
             if not is_connected:
                 printers_offline.append(printer.name)
                 continue
+
+            if require_plate_clear and printer_manager.is_awaiting_plate_clear(printer.id):
+                printers_awaiting_clear.append(printer.name)
+                continue
+
+            is_idle = self._is_printer_idle(printer.id, require_plate_clear)
 
             if not is_idle:
                 # Printer is currently printing.  For force-color jobs, check whether the
@@ -777,6 +782,8 @@ class PrintScheduler:
             reasons.append(f"Busy: {', '.join(printers_busy)}")
         if printers_offline:
             reasons.append(f"Offline: {', '.join(printers_offline)}")
+        if printers_awaiting_clear:
+            reasons.append(f"Awaiting plate clear: {', '.join(printers_awaiting_clear)}")
 
         return None, " | ".join(reasons) if reasons else f"No available {model} printers{location_suffix}"
 
