@@ -41,29 +41,84 @@ async def upload_elegoo_file_async(
     remote_filename: str,
     progress_callback=None,
 ) -> bool:
-    """Upload a print file to an Elegoo printer over HTTP POST or FTP fallback."""
+    """Upload a print file to an Elegoo CC1 printer via the chunked multipart protocol.
+
+    The CC1 expects POST to /uploadFile/upload with 1MB chunks, each containing:
+      - Check=1
+      - S-File-MD5=<full file MD5>
+      - Offset=<byte offset of chunk>
+      - Uuid=<random UUID for this transfer session>
+      - TotalSize=<total file size in bytes>
+      - File=<chunk bytes>
+    Success is indicated by JSON {"code": "000000"} in the response body.
+    This matches the OrcaSlicer ElegooLink::loopUpload / uploadPart implementation.
+    """
+    import hashlib
+    import uuid as _uuid
     import httpx
 
-    url = f"http://{ip_address}/upload"
-    try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            with open(local_path, "rb") as f:
-                files = {"file": (remote_filename, f, "application/octet-stream")}
-                res = await client.post(url, files=files)
-                if res.status_code in (200, 201):
-                    logger.info("Elegoo HTTP upload of %s to %s succeeded", remote_filename, ip_address)
-                    return True
-    except Exception as e:
-        logger.warning("HTTP upload to Elegoo printer at %s failed (%s); trying FTP fallback...", ip_address, e)
+    MAX_CHUNK = 1024 * 1024  # 1 MB per chunk
 
-    # Fallback to FTP upload
-    return await upload_file_async(
-        ip_address,
-        access_code,
-        local_path,
-        f"/{remote_filename}",
-        progress_callback=progress_callback,
-    )
+    try:
+        data = local_path.read_bytes()
+        file_size = len(data)
+        file_md5 = hashlib.md5(data).hexdigest()
+        transfer_uuid = str(_uuid.uuid4())
+        url = f"http://{ip_address}/uploadFile/upload"
+
+        num_chunks = max(1, (file_size + MAX_CHUNK - 1) // MAX_CHUNK)
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            for i in range(num_chunks):
+                offset = i * MAX_CHUNK
+                chunk = data[offset: offset + MAX_CHUNK]
+                files = {"File": (remote_filename, chunk, "application/octet-stream")}
+                form = {
+                    "Check": "1",
+                    "S-File-MD5": file_md5,
+                    "Offset": str(offset),
+                    "Uuid": transfer_uuid,
+                    "TotalSize": str(file_size),
+                }
+                res = await client.post(url, data=form, files=files)
+                if res.status_code == 200:
+                    try:
+                        body = res.json()
+                        if body.get("code") == "000000":
+                            logger.debug(
+                                "Elegoo upload chunk %d/%d to %s OK", i + 1, num_chunks, ip_address
+                            )
+                            if progress_callback:
+                                uploaded = min(offset + MAX_CHUNK, file_size)
+                                try:
+                                    progress_callback(uploaded, file_size)
+                                except Exception:
+                                    pass
+                            continue
+                        else:
+                            logger.warning(
+                                "Elegoo upload chunk %d/%d rejected by printer (code=%s): %s",
+                                i + 1, num_chunks, body.get("code"), body
+                            )
+                            return False
+                    except Exception:
+                        logger.warning(
+                            "Elegoo upload chunk %d/%d: could not parse response: %s",
+                            i + 1, num_chunks, res.text[:200]
+                        )
+                        return False
+                else:
+                    logger.warning(
+                        "Elegoo upload chunk %d/%d: HTTP %d from printer",
+                        i + 1, num_chunks, res.status_code
+                    )
+                    return False
+
+        logger.info("Elegoo HTTP upload of %s to %s succeeded (%d bytes)", remote_filename, ip_address, file_size)
+        return True
+
+    except Exception as e:
+        logger.warning("Elegoo chunked upload to %s failed: %s", ip_address, e)
+        return False
 
 from backend.app.services.notification_service import notification_service
 from backend.app.services.printer_manager import (
