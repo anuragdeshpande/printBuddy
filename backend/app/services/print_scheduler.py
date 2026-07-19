@@ -30,7 +30,41 @@ from backend.app.services.bambu_ftp import (
     upload_file_async,
     with_ftp_retry,
 )
+from backend.app.services.elegoo_client import is_elegoo_model
 from backend.app.services.filament_deficit import compute_deficit_for_queue_item
+
+
+async def upload_elegoo_file_async(
+    ip_address: str,
+    access_code: str,
+    local_path: Path,
+    remote_filename: str,
+    progress_callback=None,
+) -> bool:
+    """Upload a print file to an Elegoo printer over HTTP POST or FTP fallback."""
+    import httpx
+
+    url = f"http://{ip_address}/upload"
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            with open(local_path, "rb") as f:
+                files = {"file": (remote_filename, f, "application/octet-stream")}
+                res = await client.post(url, files=files)
+                if res.status_code in (200, 201):
+                    logger.info("Elegoo HTTP upload of %s to %s succeeded", remote_filename, ip_address)
+                    return True
+    except Exception as e:
+        logger.warning("HTTP upload to Elegoo printer at %s failed (%s); trying FTP fallback...", ip_address, e)
+
+    # Fallback to FTP upload
+    return await upload_file_async(
+        ip_address,
+        access_code,
+        local_path,
+        f"/{remote_filename}",
+        progress_callback=progress_callback,
+    )
+
 from backend.app.services.notification_service import notification_service
 from backend.app.services.printer_manager import (
     printer_manager,
@@ -2713,7 +2747,15 @@ class PrintScheduler:
         progress_bridge = _UploadProgressBridge(toast_uid, item.id)
 
         try:
-            if ftp_retry_enabled:
+            if is_elegoo_model(printer.model):
+                uploaded = await upload_elegoo_file_async(
+                    printer.ip_address,
+                    printer.access_code,
+                    file_path,
+                    remote_filename,
+                    progress_callback=progress_bridge,
+                )
+            elif ftp_retry_enabled:
                 uploaded = await with_ftp_retry(
                     upload_file_async,
                     printer.ip_address,
@@ -2739,7 +2781,7 @@ class PrintScheduler:
                 )
         except Exception as e:
             uploaded = False
-            logger.error("Queue item %s: FTP error: %s (type: %s)", item.id, e, type(e).__name__)
+            logger.error("Queue item %s: Upload error: %s (type: %s)", item.id, e, type(e).__name__)
 
         # Clean up injected temp file after upload attempt
         if injected_path and injected_path.exists():

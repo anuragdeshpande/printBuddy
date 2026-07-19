@@ -350,11 +350,27 @@ class MQTTBridge:
         if current is None:
             return
 
-        try:
-            current.register_raw_message_handler(self._on_printer_raw)
-        except Exception:
-            logger.exception("[%s] MQTT bridge: register_raw_message_handler failed", self.vp_name)
-            return
+        if hasattr(current, "register_raw_message_handler"):
+            try:
+                current.register_raw_message_handler(self._on_printer_raw)
+            except Exception:
+                logger.exception("[%s] MQTT bridge: register_raw_message_handler failed", self.vp_name)
+                return
+        elif hasattr(current, "on_state_change"):
+            # Support ElegooCentauriClient (or custom client wrappers)
+            self._orig_elegoo_on_state_change = getattr(current, "on_state_change", None)
+
+            def _elegoo_callback_chain(state):
+                if callable(getattr(self, "_orig_elegoo_on_state_change", None)):
+                    try:
+                        self._orig_elegoo_on_state_change(state)
+                    except Exception:
+                        pass
+                self._on_elegoo_state_change(state)
+
+            current.on_state_change = _elegoo_callback_chain
+            if getattr(current, "state", None):
+                self._on_elegoo_state_change(current.state)
 
         self._target_client = current
         self._target_serial = getattr(current, "serial_number", None)
@@ -367,24 +383,6 @@ class MQTTBridge:
             self._target_serial,
         )
 
-        # Trigger a fresh get_version + pushall against the printer so the bridge
-        # cache populates immediately. Bambuddy itself queries these on connect,
-        # but that fires before the bridge attaches as a raw-message consumer,
-        # so without this nudge the cache stays empty until the next periodic
-        # query (which can be minutes away).
-        #
-        # The bind frequently races the real printer's MQTT TLS handshake — a
-        # slicer-side reconnect re-resolves the client before the underlying
-        # session has reconnected, especially on A1 firmware where the bridge
-        # cycles more aggressively (#1721). When that happens, the nudge is a
-        # no-op — the next periodic pushall populates the cache anyway — but
-        # `request_status_update` logs WARNING on the not-connected return path
-        # and pollutes every support bundle with a benign line.
-        #
-        # Gate both nudges on the client being actually connected. The fall-
-        # through path is unchanged: when the client comes up, the next
-        # `_resolve_client` tick re-enters this branch on identity change OR
-        # the periodic pushall in `bambu_mqtt.py` fills the cache.
         client_connected = bool(getattr(getattr(current, "state", None), "connected", False))
         if not client_connected:
             logger.debug(
@@ -408,13 +406,98 @@ class MQTTBridge:
     def _unbind_client(self) -> None:
         if self._target_client is None:
             return
-        try:
-            self._target_client.unregister_raw_message_handler(self._on_printer_raw)
-        except Exception:
-            logger.exception("[%s] MQTT bridge: unregister_raw_message_handler failed", self.vp_name)
+        if hasattr(self._target_client, "unregister_raw_message_handler"):
+            try:
+                self._target_client.unregister_raw_message_handler(self._on_printer_raw)
+            except Exception:
+                logger.exception("[%s] MQTT bridge: unregister_raw_message_handler failed", self.vp_name)
+        elif hasattr(self, "_orig_elegoo_on_state_change"):
+            self._target_client.on_state_change = self._orig_elegoo_on_state_change
+            self._orig_elegoo_on_state_change = None
+
         logger.info("[%s] MQTT bridge unbound from printer %s", self.vp_name, self.target_printer_id)
         self._target_client = None
         self._target_serial = None
+
+    def _on_elegoo_state_change(self, state) -> None:
+        """Callback for ElegooCentauriClient state updates.
+
+        Synthesizes a Bambu-shaped push_status dictionary from PrinterState
+        so slicers connected to the VP receive real-time telemetry.
+        """
+        if self._stopping:
+            return
+
+        try:
+            temperatures = getattr(state, "temperatures", {}) or {}
+            nozzle_temp = temperatures.get("nozzle", 0.0)
+            nozzle_target = temperatures.get("nozzle_target", 0.0)
+            bed_temp = temperatures.get("bed", 0.0)
+            bed_target = temperatures.get("bed_target", 0.0)
+            chamber_temp = temperatures.get("chamber", 0.0)
+
+            ams_units = []
+            if getattr(state, "ams", None):
+                for unit in state.ams:
+                    trays = []
+                    for tray in unit.get("tray", []):
+                        color = tray.get("tray_color", "FFFFFF")
+                        if not color.endswith("FF") and len(color) == 6:
+                            color += "FF"
+                        trays.append({
+                            "id": str(tray.get("id", "0")),
+                            "tray_type": tray.get("tray_type", "PLA"),
+                            "tray_color": color,
+                            "tray_sub_brands": tray.get("tray_sub_brands", ""),
+                            "nozzle_temp_min": tray.get("nozzle_temp_min", 190),
+                            "nozzle_temp_max": tray.get("nozzle_temp_max", 240),
+                            "state": tray.get("state", 11),
+                        })
+                    ams_units.append({
+                        "id": str(unit.get("id", "0")),
+                        "tray": trays,
+                    })
+
+            synthetic_push = {
+                "command": "push_status",
+                "msg": 0,
+                "sequence_id": "0",
+                "gcode_state": getattr(state, "state", "IDLE") or "IDLE",
+                "gcode_file": getattr(state, "current_print", "") or "",
+                "subtask_name": getattr(state, "subtask_name", "") or "",
+                "mc_percent": int(getattr(state, "progress", 0) or 0),
+                "mc_remaining_time": int(getattr(state, "remaining_time", 0) or 0),
+                "layer_num": getattr(state, "layer_num", 0) or 0,
+                "total_layer_num": getattr(state, "total_layers", 0) or 0,
+                "nozzle_temper": nozzle_temp,
+                "nozzle_target_temper": nozzle_target,
+                "bed_temper": bed_temp,
+                "bed_target_temper": bed_target,
+                "chamber_temper": chamber_temp,
+                "spd_lvl": getattr(state, "speed_level", 2) or 2,
+                "cooling_fan_speed": str(getattr(state, "cooling_fan_speed", 0) or 0),
+                "big_fan1_speed": str(getattr(state, "big_fan1_speed", 0) or 0),
+                "big_fan2_speed": str(getattr(state, "big_fan2_speed", 0) or 0),
+                "home_flag": 0x100,
+                "sdcard": True,
+                "storage": {"free": 1_000_000_000, "total": 32_000_000_000},
+            }
+            if ams_units:
+                synthetic_push["ams"] = {"ams": ams_units, "tray_exist": (1 << len(ams_units)) - 1}
+
+            self._rewrite_net_info_ips(synthetic_push)
+
+            prev = self._latest_print_state
+            if prev is not None:
+                for prev_key, prev_value in prev.items():
+                    if prev_key not in synthetic_push:
+                        synthetic_push[prev_key] = copy.deepcopy(prev_value)
+
+            self._latest_print_state = synthetic_push
+            if self._mqtt_server:
+                self._mqtt_server.broadcast_status()
+        except Exception as e:
+            logger.debug("[%s] Elegoo state change synthesis error: %s", self.vp_name, e)
 
     def _refresh_ip_encoding(self) -> None:
         """(Re-)encode `_target_ip_uint32_le` / `_vp_ip_uint32_le` from current values.

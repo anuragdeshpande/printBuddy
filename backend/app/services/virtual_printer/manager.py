@@ -1112,13 +1112,15 @@ class VirtualPrinterInstance:
             target_model = getattr(target_client, "model", None) if target_client else None
             if target_ip:
                 from backend.app.services.camera import get_camera_port
+                from backend.app.services.elegoo_client import is_elegoo_model
 
                 camera_port = get_camera_port(target_model)
+                target_camera_port = 3031 if is_elegoo_model(target_model) else camera_port
                 self._rtsp_proxy = TCPProxy(
                     name=f"Camera-{camera_port}",
                     listen_port=camera_port,
                     target_host=target_ip,
-                    target_port=camera_port,
+                    target_port=target_camera_port,
                     bind_address=bind_addr,
                 )
                 self._tasks.append(
