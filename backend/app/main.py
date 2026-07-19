@@ -6836,6 +6836,8 @@ _HTML_CACHE_HEADERS = {"Cache-Control": "no-cache, must-revalidate"}
 # Elegoo Link API Protocol Endpoints for OrcaSlicer Compatibility
 # ============================================================================
 
+elegoo_logger = logging.getLogger("backend.app.main.elegoo_link")
+
 
 @app.api_route("/system/info", methods=["GET", "HEAD"])
 async def elegoo_link_system_info():
@@ -6879,7 +6881,7 @@ async def elegoo_link_upload_handler(request: Request):
 
     Handles both multipart form data and raw binary stream uploads sent by OrcaSlicer.
     """
-    logger.info("Elegoo Link HTTP upload endpoint hit")
+    elegoo_logger.info("Elegoo Link HTTP upload endpoint hit")
 
     content_type = request.headers.get("content-type", "")
     filename = request.headers.get("x-file-name") or "elegoo_print.gcode.3mf"
@@ -6935,9 +6937,9 @@ async def elegoo_link_upload_handler(request: Request):
                 )
                 db.add(queue_item)
                 await db.commit()
-                logger.info("Elegoo Link upload %s queued for printer %s", archive.print_name, target_printer.name)
+                elegoo_logger.info("Elegoo Link upload %s queued for printer %s", archive.print_name, target_printer.name)
     except Exception as e:
-        logger.error("Failed to enqueue Elegoo Link upload %s: %s", safe_name, e)
+        elegoo_logger.error("Failed to enqueue Elegoo Link upload %s: %s", safe_name, e)
     finally:
         temp_path.unlink(missing_ok=True)
 
