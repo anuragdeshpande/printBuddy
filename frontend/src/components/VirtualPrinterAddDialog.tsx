@@ -6,6 +6,7 @@ import { api, multiVirtualPrinterApi } from '../api/client';
 import { Card, CardContent } from './Card';
 import { Button } from './Button';
 import { useToast } from '../contexts/ToastContext';
+import { MakeModelSelector } from './MakeModelSelector';
 
 type Mode = 'archive' | 'review' | 'queue' | 'proxy';
 
@@ -17,16 +18,18 @@ const MODE_LABELS: Record<string, string> = {
 };
 
 interface VirtualPrinterAddDialogProps {
+  models?: Record<string, string>;
   onClose: () => void;
 }
 
-export function VirtualPrinterAddDialog({ onClose }: VirtualPrinterAddDialogProps) {
+export function VirtualPrinterAddDialog({ models = {}, onClose }: VirtualPrinterAddDialogProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
 
   const [name, setName] = useState('');
   const [mode, setMode] = useState<Mode>('archive');
+  const [model, setModel] = useState<string>('BL-P001');
   const [targetPrinterId, setTargetPrinterId] = useState<number | null>(null);
 
   const { data: printers } = useQuery({
@@ -39,6 +42,7 @@ export function VirtualPrinterAddDialog({ onClose }: VirtualPrinterAddDialogProp
       multiVirtualPrinterApi.create({
         name: name.trim() || 'Bambuddy',
         mode,
+        model,
         target_printer_id: mode === 'proxy' ? (targetPrinterId ?? undefined) : undefined,
       }),
     onSuccess: () => {
@@ -75,6 +79,17 @@ export function VirtualPrinterAddDialog({ onClose }: VirtualPrinterAddDialogProp
               autoFocus
             />
           </div>
+
+          {/* Printer Make and Model */}
+          {Object.keys(models).length > 0 && (
+            <div className="pt-1">
+              <MakeModelSelector
+                models={models}
+                value={model}
+                onChange={setModel}
+              />
+            </div>
+          )}
 
           {/* Mode */}
           <div>

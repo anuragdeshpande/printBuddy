@@ -240,7 +240,7 @@ export function VirtualPrinterList() {
       )}
 
       {showAddDialog && (
-        <VirtualPrinterAddDialog onClose={() => setShowAddDialog(false)} />
+        <VirtualPrinterAddDialog models={models} onClose={() => setShowAddDialog(false)} />
       )}
     </div>
   );

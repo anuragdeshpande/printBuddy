@@ -61,6 +61,9 @@ VIRTUAL_PRINTER_MODELS = {
     "O1C": "H2C",  # H2C
     "O1C2": "H2C",  # H2C (dual nozzle variant)
     "O1S": "H2S",  # H2S
+    # Elegoo Series
+    "EG-CC1": "Centauri Carbon",
+    "EG-CC2": "Centauri Carbon 2",
 }
 
 # Serial number prefixes for each model (based on Bambu Lab serial number format)
@@ -95,6 +98,9 @@ MODEL_SERIAL_PREFIXES = {
     "O1C": "09400A",  # H2C
     "O1C2": "09400A",  # H2C (dual nozzle variant)
     "O1S": "09400A",  # H2S
+    # Elegoo Series
+    "EG-CC1": "20P90A",  # Centauri Carbon
+    "EG-CC2": "20P90A",  # Centauri Carbon 2
 }
 
 # Reverse mapping: display name → SSDP model code (for auto-inheriting from printer model)

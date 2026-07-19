@@ -11,6 +11,7 @@ import { Card, CardContent } from './Card';
 import { Button } from './Button';
 import { ConfirmModal } from './ConfirmModal';
 import { VirtualPrinterDiagnosticModal } from './VirtualPrinterDiagnosticModal';
+import { MakeModelSelector } from './MakeModelSelector';
 import { useToast } from '../contexts/ToastContext';
 import { copyTextToClipboard } from '../utils/clipboard';
 
@@ -250,47 +251,56 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
       <Card>
         {/* Collapsed header - always visible, clickable to expand */}
         <div
-          className="px-4 py-3 flex items-center gap-3 cursor-pointer select-none"
+          className="px-4 py-3 flex flex-col gap-1.5 cursor-pointer select-none"
           onClick={() => setExpanded(!expanded)}
         >
-          <button className="text-bambu-gray flex-shrink-0">
-            {expanded
-              ? <ChevronDown className="w-4 h-4" />
-              : <ChevronRight className="w-4 h-4" />
-            }
-          </button>
-          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isRunning ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
-          <span className="text-white font-medium truncate">{printer.name}</span>
-          <span className="text-xs text-bambu-gray flex-shrink-0">{modeLabel}</span>
-          {printer.model_name && (
-            <span className="text-xs text-bambu-gray flex-shrink-0">{printer.model_name}</span>
-          )}
-          {targetPrinterName && (
-            <span className="text-xs text-bambu-gray flex-shrink-0 truncate">
-              {localMode === 'proxy' && <ArrowRightLeft className="w-3 h-3 inline mr-1" />}
-              {targetPrinterName}
-            </span>
-          )}
-          {localBindIp && (
-            <span className="text-[10px] text-bambu-gray flex-shrink-0 font-mono">{localBindIp}</span>
-          )}
-          {localRemoteInterfaceIp && (
-            <span className="text-[10px] text-bambu-gray flex-shrink-0 font-mono">{localRemoteInterfaceIp}</span>
-          )}
-          <div className="ml-auto flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={handleToggleEnabled}
-              disabled={pendingAction === 'toggle'}
-              className={`relative w-10 h-5 rounded-full transition-colors ${
-                localEnabled ? 'bg-bambu-green' : 'bg-bambu-dark-tertiary'
-              } ${pendingAction === 'toggle' ? 'opacity-50' : ''}`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
-                  localEnabled ? 'translate-x-5' : ''
-                }`}
-              />
-            </button>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <button className="text-bambu-gray shrink-0">
+                {expanded
+                  ? <ChevronDown className="w-4 h-4" />
+                  : <ChevronRight className="w-4 h-4" />
+                }
+              </button>
+              <span className={`w-2 h-2 rounded-full shrink-0 ${isRunning ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
+              <span className="text-white font-medium truncate">{printer.name}</span>
+              <span className="text-xs text-bambu-gray shrink-0 px-1.5 py-0.5 rounded bg-bambu-dark-secondary border border-bambu-dark-tertiary">
+                {modeLabel}
+              </span>
+            </div>
+            <div className="shrink-0 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={handleToggleEnabled}
+                disabled={pendingAction === 'toggle'}
+                className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${
+                  localEnabled ? 'bg-bambu-green' : 'bg-bambu-dark-tertiary'
+                } ${pendingAction === 'toggle' ? 'opacity-50' : ''}`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                    localEnabled ? 'translate-x-5' : ''
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+          {/* Metadata subtitle row - flex-wrap to contain inside card */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-bambu-gray pl-6">
+            {printer.model_name && (
+              <span>Model: <strong className="text-gray-300 font-normal">{printer.model_name}</strong></span>
+            )}
+            {targetPrinterName && (
+              <span className="truncate">
+                {localMode === 'proxy' && <ArrowRightLeft className="w-3 h-3 inline mr-1" />}
+                Target: <strong className="text-gray-300 font-normal">{targetPrinterName}</strong>
+              </span>
+            )}
+            {localBindIp && (
+              <span className="font-mono text-[11px] text-bambu-gray">IP: {localBindIp}</span>
+            )}
+            {localRemoteInterfaceIp && (
+              <span className="font-mono text-[11px] text-bambu-gray">Remote: {localRemoteInterfaceIp}</span>
+            )}
           </div>
         </div>
 
@@ -502,19 +512,12 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
               <div className="pt-2 border-t border-bambu-dark-tertiary">
                 <div className="text-white text-sm font-medium mb-1">{t('virtualPrinter.model.title')}</div>
                 <p className="text-xs text-bambu-gray mb-2">{t('virtualPrinter.model.description')}</p>
-                <div className="relative">
-                  <select
-                    value={localModel}
-                    onChange={(e) => handleModelChange(e.target.value)}
-                    disabled={pendingAction === 'model'}
-                    className="w-full bg-bambu-dark-secondary border border-bambu-dark-tertiary rounded-md px-3 py-1.5 text-white text-sm appearance-none cursor-pointer disabled:opacity-50 pr-10"
-                  >
-                    {Object.entries(models).map(([code, name]) => (
-                      <option key={code} value={code}>{name} ({code})</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-bambu-gray pointer-events-none" />
-                </div>
+                <MakeModelSelector
+                  models={models}
+                  value={localModel}
+                  onChange={handleModelChange}
+                  disabled={pendingAction === 'model'}
+                />
               </div>
             )}
 
