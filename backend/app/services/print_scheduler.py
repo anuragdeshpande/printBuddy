@@ -130,7 +130,7 @@ from backend.app.services.printer_manager import (
     supports_drying_while_printing,
 )
 from backend.app.services.smart_plug_manager import smart_plug_manager
-from backend.app.utils.filename import derive_remote_filename
+from backend.app.utils.filename import derive_remote_filename, derive_elegoo_remote_filename
 from backend.app.utils.printer_models import normalize_printer_model
 
 logger = logging.getLogger(__name__)
@@ -2760,7 +2760,12 @@ class PrintScheduler:
 
         # Upload to root directory (not /cache/) - the start_print command references
         # files by name only (ftp://{filename}), so they must be in the root
-        remote_filename = derive_remote_filename(filename)
+        # Elegoo CC1 is a gcode-based printer and stores files as .gcode, not .3mf.
+        # Using .gcode.3mf causes the start_print SDCP command to fail (file not found).
+        if is_elegoo_model(printer.model):
+            remote_filename = derive_elegoo_remote_filename(filename)
+        else:
+            remote_filename = derive_remote_filename(filename)
         remote_path = f"/{remote_filename}"
 
         # Get FTP retry settings

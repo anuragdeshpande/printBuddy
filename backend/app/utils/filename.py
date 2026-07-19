@@ -88,3 +88,27 @@ def derive_remote_filename(filename: str) -> str:
         else:
             break
     return f"{stem}.3mf".replace(" ", "_")
+
+
+def derive_elegoo_remote_filename(filename: str) -> str:
+    """Compute the SD-card filename for an Elegoo CC1 printer upload.
+
+    The CC1 is a gcode-based FDM printer — it stores and references files
+    as ``.gcode``, not ``.3mf``. This strips any trailing ``.gcode.3mf``
+    or ``.3mf`` suffix and ensures the result ends in ``.gcode``.
+    Spaces are replaced with underscores for URL-safe filenames.
+    """
+    if not isinstance(filename, str):
+        raise TypeError(f"derive_elegoo_remote_filename requires str, got {type(filename).__name__}")
+    stem = filename
+    while True:
+        if stem.endswith(".gcode.3mf"):
+            stem = stem[:-10]
+        elif stem.endswith(".3mf"):
+            stem = stem[:-4]
+        elif stem.endswith(".gcode"):
+            stem = stem[:-6]
+        else:
+            break
+    return f"{stem}.gcode".replace(" ", "_")
+
