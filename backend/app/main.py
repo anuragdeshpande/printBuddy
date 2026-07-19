@@ -6257,6 +6257,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logging.warning("Failed to sync virtual printers: %s", e)
 
+    # Start Elegoo SDCP WebSocket server for port 3030 (OrcaSlicer Elegoo Link)
+    try:
+        from backend.app.services.virtual_printer.elegoo_sdcp_server import elegoo_sdcp_server
+        spawn_background_task(elegoo_sdcp_server.start(), name="elegoo-sdcp-server")
+    except Exception as e:
+        logging.warning("Failed to start Elegoo SDCP server: %s", e)
+
     yield
 
     # Shutdown
