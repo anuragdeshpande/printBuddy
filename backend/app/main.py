@@ -6893,6 +6893,8 @@ async def elegoo_link_upload_handler(request: Request):
     content_type = request.headers.get("content-type", "")
     filename = request.headers.get("x-file-name") or "elegoo_print.gcode.3mf"
     file_bytes = b""
+    offset = 0
+    total_size = 0
 
     if "multipart/form-data" in content_type:
         form = await request.form()
@@ -6900,10 +6902,24 @@ async def elegoo_link_upload_handler(request: Request):
         if uploaded_file and hasattr(uploaded_file, "read"):
             filename = getattr(uploaded_file, "filename", filename) or filename
             file_bytes = await uploaded_file.read()
-        else:
-            file_bytes = await request.body()
+        
+        offset_val = form.get("Offset") or form.get("offset")
+        total_val = form.get("TotalSize") or form.get("total_size") or form.get("totalsize")
+        if offset_val is not None:
+            offset = int(offset_val)
+        if total_val is not None:
+            total_size = int(total_val)
     else:
         file_bytes = await request.body()
+        content_range = request.headers.get("content-range", "")
+        if content_range.startswith("bytes "):
+            try:
+                parts = content_range.split(" ")[1].split("/")
+                range_part = parts[0]
+                total_size = int(parts[1])
+                offset = int(range_part.split("-")[0])
+            except Exception:
+                pass
 
     if not file_bytes:
         return JSONResponse({"code": 400, "msg": "Empty file body"}, status_code=400)
@@ -6911,7 +6927,29 @@ async def elegoo_link_upload_handler(request: Request):
     safe_name = filename.replace("/", "_").replace("\\", "_")
     temp_path = app_settings.archive_dir / "temp" / safe_name
     temp_path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path.write_bytes(file_bytes)
+
+    if offset == 0:
+        temp_path.write_bytes(file_bytes)
+    else:
+        with open(temp_path, "ab") as f:
+            f.write(file_bytes)
+
+    chunk_len = len(file_bytes)
+    is_final = True
+    if total_size > 0:
+        is_final = (offset + chunk_len) >= total_size
+
+    if not is_final:
+        return JSONResponse(
+            {
+                "code": "000000",
+                "code_num": 0,
+                "msg": "ok",
+                "message": "success",
+                "vendor": "ELEGOO",
+                "data": {"filename": safe_name, "offset": offset, "status": "uploading"},
+            }
+        )
 
     # Archive and queue print job for connected Elegoo printer
     try:
