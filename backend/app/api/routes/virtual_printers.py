@@ -1,10 +1,11 @@
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from backend.app.core.config import settings
 
 from backend.app.core.auth import RequirePermissionIfAuthEnabled
 from backend.app.core.database import get_db
@@ -588,3 +589,60 @@ async def delete_virtual_printer(
         logger.error("Failed to sync virtual printers after delete: %s", e)
 
     return {"detail": "Deleted", "id": vp_id}
+
+
+@router.post("/upload")
+@router.post("/api/upload")
+async def elegoo_link_upload(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Elegoo Link HTTP upload endpoint compatible with OrcaSlicer / Elegoo Link host type.
+
+    Receives print file uploads from OrcaSlicer when using 'Elegoo Link' host type
+    and adds them to the Print Queue for configured Elegoo printers.
+    """
+    logger.info("Elegoo Link HTTP upload received: %s", file.filename)
+    if not file.filename:
+        return JSONResponse({"code": 400, "msg": "Filename missing"}, status_code=400)
+
+    safe_name = file.filename.replace("/", "_").replace("\\", "_")
+    temp_path = settings.archive_dir / "temp" / safe_name
+    temp_path.parent.mkdir(parents=True, exist_ok=True)
+
+    content = await file.read()
+    temp_path.write_bytes(content)
+
+    from backend.app.models.print_queue import PrintQueueItem
+    from backend.app.models.printer import Printer
+    from backend.app.services.archive import ArchiveService
+    from backend.app.services.elegoo_client import is_elegoo_model
+
+    service = ArchiveService(db)
+    archive = await service.archive_print(
+        printer_id=None,
+        source_file=temp_path,
+        created_by_id=None,
+        print_data={"source": "elegoo_link", "filename": safe_name},
+    )
+
+    printers_stmt = select(Printer)
+    result = await db.execute(printers_stmt)
+    all_printers = result.scalars().all()
+    target_printer = next((p for p in all_printers if is_elegoo_model(p.model)), all_printers[0] if all_printers else None)
+
+    if archive and target_printer:
+        queue_item = PrintQueueItem(
+            printer_id=target_printer.id,
+            archive_id=archive.id,
+            position=1,
+            status="pending",
+            manual_start=False,
+        )
+        db.add(queue_item)
+        await db.commit()
+        logger.info("Elegoo Link print %s enqueued for printer %s", archive.print_name, target_printer.name)
+
+    temp_path.unlink(missing_ok=True)
+    return JSONResponse({"code": 0, "msg": "ok", "data": {"filename": safe_name}})
+
