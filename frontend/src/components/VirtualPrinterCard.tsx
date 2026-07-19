@@ -263,7 +263,7 @@ export function VirtualPrinterCard({ printer, models }: VirtualPrinterCardProps)
                 }
               </button>
               <span className={`w-2 h-2 rounded-full shrink-0 ${isRunning ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
-              <span className="text-white font-medium truncate">{printer.name}</span>
+              <span className="text-white font-medium break-words whitespace-normal text-left flex-1 min-w-0">{printer.name}</span>
               <span className="text-xs text-bambu-gray shrink-0 px-1.5 py-0.5 rounded bg-bambu-dark-secondary border border-bambu-dark-tertiary">
                 {modeLabel}
               </span>
