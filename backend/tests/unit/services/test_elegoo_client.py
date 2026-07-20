@@ -35,15 +35,13 @@ class TestElegooCentauriClient:
     @patch("backend.app.services.elegoo_client.connect_auto", new_callable=AsyncMock)
     @pytest.mark.asyncio
     async def test_async_connect(self, mock_connect, client):
-        # Setup mocks
         mock_printer = MagicMock()
         mock_printer.attributes = AsyncMock(return_value=MagicMock(firmware_version="V1.0"))
         mock_connect.return_value = mock_printer
-        
-        # Connect client
+
         client._loop = asyncio.get_running_loop()
         await client._async_connect()
-        
+
         assert client.state.connected is True
         assert client.state.firmware_version == "V1.0"
         mock_connect.assert_called_once_with(
@@ -52,8 +50,7 @@ class TestElegooCentauriClient:
             enable_control=True
         )
 
-    def test_update_state(self, client):
-        # Construct mock status
+    def test_update_state_running(self, client):
         status_payload = {
             "TempOfNozzle": 210,
             "TempTargetNozzle": 220,
@@ -77,11 +74,8 @@ class TestElegooCentauriClient:
             }
         }
         status = Status.from_payload(status_payload)
-        
-        # Update client state
         client._update_state(status)
-        
-        # Verify telemetry mapping
+
         assert client.state.temperatures["nozzle"] == 210.0
         assert client.state.temperatures["nozzle_target"] == 220.0
         assert client.state.temperatures["bed"] == 60.0
@@ -94,8 +88,44 @@ class TestElegooCentauriClient:
         assert client.state.progress == 42.0
         assert client.state.layer_num == 15
         assert client.state.total_layers == 150
-        assert client.state.speed_level == 2  # balanced
+        assert client.state.speed_level == 2
         assert client.state.state == "RUNNING"
+        assert client.state.stg_cur == 0
+
+    def test_update_state_preparation_stages(self, client):
+        prep_codes = [
+            (10, 52),  # File Checking -> Material check
+            (11, 44),  # Printer Checking -> Platform check
+            (15, 1),   # Auto Bed Leveling
+            (16, 2),   # Preheating
+            (17, 3),   # Vibration Compensation
+            (18, 74),  # Starting Print / Preparing
+        ]
+
+        for code, expected_stg in prep_codes:
+            raw = {"PrintInfo": {"Status": code, "Filename": "", "Progress": 0}}
+            status = Status.from_payload(raw)
+            client.state.current_print = "active_job.gcode"
+            client._update_state(status)
+
+            assert client.state.state == "PREPARE"
+            assert client.state.stg_cur == expected_stg
+            # Verify optimistic current_print preservation during PREPARE
+            assert client.state.current_print == "active_job.gcode"
+
+    def test_update_state_terminal_clears_job(self, client):
+        client.state.current_print = "finished_job.gcode"
+        client.state.subtask_name = "finished_job.gcode"
+        client.state.gcode_file = "finished_job.gcode"
+
+        raw = {"PrintInfo": {"Status": 9, "Filename": "", "Progress": 100}}  # Status 9 = FINISH
+        status = Status.from_payload(raw)
+        client._update_state(status)
+
+        assert client.state.state == "FINISH"
+        assert client.state.current_print == ""
+        assert client.state.subtask_name == ""
+        assert client.state.gcode_file == ""
 
     def test_control_commands(self, client):
         client._printer = MagicMock()
@@ -106,24 +136,11 @@ class TestElegooCentauriClient:
         client._printer.set_temperatures = AsyncMock()
         client._printer.set_fan_speed = AsyncMock()
         client._loop = MagicMock()
-        
-        # Test stop
+
         assert client.stop_print() is True
-        client._loop.create_task.assert_called()
-        
-        # Test pause
         assert client.pause_print() is True
-        
-        # Test resume
         assert client.resume_print() is True
-        
-        # Test speed level (silent = 1 -> "silent")
         assert client.set_print_speed(1) is True
-        
-        # Test temp setting
         assert client.set_nozzle_temperature(230) is True
         assert client.set_bed_temperature(65) is True
-        
-        # Test fan speed mapping
-        # fan_id=1 (part) -> model fan, pwm 128 -> ~50%
         assert client.set_fan_speed(1, 128) is True

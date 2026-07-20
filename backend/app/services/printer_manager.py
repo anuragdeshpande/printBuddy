@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.models.printer import Printer
 from backend.app.services.bambu_mqtt import BambuMQTTClient, MQTTLogEntry, PrinterState, get_stage_name
 from backend.app.services.elegoo_client import ElegooCentauriClient, is_elegoo_model
+from backend.app.services.flashforge_client import FlashforgeClient, is_flashforge_model
+
 
 logger = logging.getLogger(__name__)
 
@@ -557,8 +559,25 @@ class PrinterManager:
             if self._on_drying_complete:
                 self._schedule_async(self._on_drying_complete(printer_id, ams_id))
 
-        if is_elegoo_model(printer.model):
+        if is_flashforge_model(printer.model):
+            client = FlashforgeClient(
+                ip_address=printer.ip_address,
+                serial_number=printer.serial_number,
+                access_code=printer.access_code,
+                model=printer.model,
+                on_state_change=on_state_change,
+                on_print_start=on_print_start,
+                on_print_complete=on_print_complete,
+                on_ams_change=on_ams_change,
+                on_layer_change=on_layer_change,
+                on_bed_temp_update=on_bed_temp_update,
+                on_drying_complete=on_drying_complete,
+                on_print_running_observed=on_print_running_observed,
+                on_finish_photo_moment=on_finish_photo_moment,
+            )
+        elif is_elegoo_model(printer.model):
             client = ElegooCentauriClient(
+
                 ip_address=printer.ip_address,
                 serial_number=printer.serial_number,
                 access_code=printer.access_code,

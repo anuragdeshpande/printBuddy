@@ -64,6 +64,8 @@ VIRTUAL_PRINTER_MODELS = {
     # Elegoo Series
     "EG-CC1": "Centauri Carbon",
     "EG-CC2": "Centauri Carbon 2",
+    # Flashforge Series
+    "FF-C5": "Creator 5",
 }
 
 # Serial number prefixes for each model (based on Bambu Lab serial number format)
@@ -101,7 +103,10 @@ MODEL_SERIAL_PREFIXES = {
     # Elegoo Series
     "EG-CC1": "20P90A",  # Centauri Carbon
     "EG-CC2": "20P90A",  # Centauri Carbon 2
+    # Flashforge Series
+    "FF-C5": "FF500A",  # Creator 5
 }
+
 
 # Reverse mapping: display name → SSDP model code (for auto-inheriting from printer model)
 DISPLAY_NAME_TO_MODEL_CODE = {v: k for k, v in VIRTUAL_PRINTER_MODELS.items()}

@@ -31,6 +31,8 @@ from backend.app.services.bambu_ftp import (
     with_ftp_retry,
 )
 from backend.app.services.elegoo_client import is_elegoo_model
+from backend.app.services.flashforge_client import is_flashforge_model
+
 from backend.app.services.filament_deficit import compute_deficit_for_queue_item
 
 
@@ -2762,10 +2764,11 @@ class PrintScheduler:
         # files by name only (ftp://{filename}), so they must be in the root
         # Elegoo CC1 is a gcode-based printer and stores files as .gcode, not .3mf.
         # Using .gcode.3mf causes the start_print SDCP command to fail (file not found).
-        if is_elegoo_model(printer.model):
+        if is_elegoo_model(printer.model) or is_flashforge_model(printer.model):
             remote_filename = derive_elegoo_remote_filename(filename)
         else:
             remote_filename = derive_remote_filename(filename)
+
         remote_path = f"/{remote_filename}"
 
         # Get FTP retry settings

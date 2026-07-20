@@ -24,11 +24,15 @@ PRINTER_MODEL_MAP = {
     "Bambu Lab H2S": "H2S",
     "Bambu Lab X2D": "X2D",
     "Bambu Lab A2L": "A2L",
+    "Flashforge Creator 5": "Creator 5",
+    "Flashforge Creator 5 Pro": "Creator 5",
 }
 
 # Map from printer_model_id (internal codes in slice_info.config) to short names
 # These are the codes Bambu Studio uses internally
 PRINTER_MODEL_ID_MAP = {
+    "FF-C5": "Creator 5",
+
     # X1 series
     "C11": "X1C",
     "C12": "X1",
@@ -99,6 +103,9 @@ LINEAR_RAIL_MODELS = frozenset(
         "H2DPRO",
         "H2C",
         "H2S",
+        "CREATOR5",
+        "FF-C5",
+
         # Internal codes
         "N1",  # A1 Mini
         "N2S",  # A1

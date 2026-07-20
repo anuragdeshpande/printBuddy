@@ -547,8 +547,24 @@ async def capture_camera_frame_bytes(
     Returns:
         JPEG bytes if capture was successful, None otherwise
     """
+    # Flashforge models - fetch MJPEG snapshot frame (port 8080 or 8088)
+    from backend.app.services.flashforge_client import is_flashforge_model
+    if is_flashforge_model(model):
+        logger.info("Capturing camera frame bytes from %s using Flashforge MJPEG (model: %s)", ip_address, model)
+        import urllib.request
+        url = f"http://{ip_address}:8080/?action=snapshot"
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Bambuddy/1.0"})
+            with urllib.request.urlopen(req, timeout=float(timeout)) as resp:
+                if resp.status == 200:
+                    return resp.read()
+        except Exception as e:
+            logger.error("Failed to capture snapshot from Flashforge printer: %s", e)
+            return None
+
     # Elegoo FDM models - fetch MJPEG snapshot frame
     from backend.app.services.elegoo_client import is_elegoo_model
+
     if is_elegoo_model(model):
         logger.info("Capturing camera frame bytes from %s using Elegoo MJPEG (model: %s)", ip_address, model)
         from pycentauri.camera import snapshot as elegoo_snapshot

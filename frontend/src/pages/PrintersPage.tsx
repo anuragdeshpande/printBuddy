@@ -3762,14 +3762,15 @@ function PrinterCard({
                         <LineChartIcon className="w-2.5 h-2.5" />
                       </button>
                       <HeaterThermometer className="w-3.5 h-3.5 mb-0.5" color="text-orange-400" isHeating={nozzleHeating} />
-                      {status.temperatures.nozzle_2 !== undefined ? (
+                      {(status.temperatures.nozzle_2 !== undefined || status.temperatures.nozzle_1 !== undefined) ? (
                         <>
-                          <p className="text-[9px] text-bambu-gray">L / R</p>
+                          <p className="text-[9px] text-bambu-gray">T0 / T1</p>
                           <p className="text-[11px] text-white">
-                            {Math.round(status.temperatures.nozzle || 0)}° / {Math.round(status.temperatures.nozzle_2 || 0)}°
+                            {Math.round(status.temperatures.nozzle_0 ?? status.temperatures.nozzle ?? 0)}° / {Math.round(status.temperatures.nozzle_2 ?? status.temperatures.nozzle_1 ?? 0)}°
                           </p>
                         </>
                       ) : singleNozzleSlot ? (
+
                         <NozzleSlotHoverCard slot={singleNozzleSlot} index={0} activeStatus filamentName={singleNozzleSlot.filament_id ? filamentInfo?.[singleNozzleSlot.filament_id]?.name : undefined}>
                           <div className="cursor-default">
                             <p className="text-[9px] text-bambu-gray">{t('printers.temperatures.nozzle')}</p>
