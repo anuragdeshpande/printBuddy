@@ -1337,9 +1337,10 @@ def printer_state_to_dict(
         "awaiting_plate_clear": printer_manager.is_awaiting_plate_clear(printer_id) if printer_id else False,
     }
     # Add cover URL if there's an active print and printer_id is provided
-    # Include PAUSE state so skip objects modal can show cover
-    if printer_id and state.state in ("RUNNING", "PAUSE") and state.gcode_file:
+    # Include PAUSE and PREPARE states so skip objects modal and printer cards can show cover
+    if printer_id and state.state in ("RUNNING", "PAUSE", "PREPARE") and state.gcode_file:
         result["cover_url"] = f"/api/v1/printers/{printer_id}/cover"
+
     else:
         result["cover_url"] = None
     # Surface the display name + model so WS consumers (gcode viewer printer
