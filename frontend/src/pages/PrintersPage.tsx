@@ -1443,8 +1443,11 @@ function getStatusDisplay(state: string | null | undefined, stg_cur_name: string
   switch (state) {
     case 'RUNNING':
       return 'Printing';
+    case 'PREPARE':
+      return 'Preparing';
     case 'PAUSE':
       return 'Paused';
+
     case 'FINISH':
       return 'Finished';
     case 'FAILED':
@@ -2121,7 +2124,7 @@ function PrinterCard({
     enabled: status?.connected && status?.state !== 'RUNNING',
   });
   const lastPrint = lastPrints?.[0];
-  const isPrintingOrPaused = status?.state === 'RUNNING' || status?.state === 'PAUSE';
+  const isPrintingOrPaused = status?.state === 'RUNNING' || status?.state === 'PAUSE' || status?.state === 'PREPARE';
   const needsPlateClear = requirePlateClear && status?.awaiting_plate_clear === true;
   const showClearPlateButton = status?.connected && needsPlateClear && !isPrintingOrPaused;
   const activePrintName = status?.current_print && isPrintingOrPaused
@@ -3532,7 +3535,7 @@ function PrinterCard({
                     : hasProblem
                       ? 100
                       : 0;
-                const isActiveCompactPrint = status.state === 'RUNNING' || status.state === 'PAUSE';
+                const isActiveCompactPrint = status.state === 'RUNNING' || status.state === 'PAUSE' || status.state === 'PREPARE';
                 const compactProgressClass = hasProblem
                   ? 'bg-status-error'
                   : status.state === 'PAUSE'
@@ -3565,7 +3568,8 @@ function PrinterCard({
 
                 {/* Current Print or Idle Placeholder */}
                 {(() => {
-                  const isActivePrint = !!(status.current_print && (status.state === 'RUNNING' || status.state === 'PAUSE'));
+                  const isActivePrint = !!(status.current_print && (status.state === 'RUNNING' || status.state === 'PAUSE' || status.state === 'PREPARE'));
+
                   const showRetainedPrint = !isActivePrint && needsPlateClear && retainedPrintJob;
                   const printName = isActivePrint ? activePrintName : showRetainedPrint ? retainedPrintJob.name : null;
                   const coverUrl = isActivePrint ? status.cover_url : showRetainedPrint ? retainedPrintJob.coverUrl : null;
