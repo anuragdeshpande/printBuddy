@@ -2437,7 +2437,10 @@ async def on_print_start(printer_id: int, data: dict):
                 _check_keys += [
                     (printer_id, _no_archive_base),
                     (printer_id, f"{_no_archive_base}.3mf"),
+                    (printer_id, f"{_no_archive_base}.gcode"),
+                    (printer_id, f"{_no_archive_base}.gcode.3mf"),
                 ]
+
 
             _has_expected = any(k in _expected_prints for k in _check_keys)
 
@@ -2505,6 +2508,9 @@ async def on_print_start(printer_id: int, data: dict):
             base = fname.replace(".gcode", "").replace(".3mf", "")
             expected_keys.append((printer_id, base))
             expected_keys.append((printer_id, f"{base}.3mf"))
+            expected_keys.append((printer_id, f"{base}.gcode"))
+            expected_keys.append((printer_id, f"{base}.gcode.3mf"))
+
 
         expected_archive_id = None
         for key in expected_keys:

@@ -190,9 +190,17 @@ class ElegooCentauriClient:
         if status.print_info:
             self.state.current_print = status.print_info.filename
             self.state.subtask_name = status.print_info.filename
+            self.state.gcode_file = status.print_info.filename
             self.state.progress = float(status.print_info.progress or 0)
             self.state.layer_num = status.print_info.current_layer or 0
             self.state.total_layers = status.print_info.total_layer or 0
+            
+            # Map remaining time from ticks if available (ticks are typically ms or seconds depending on FW)
+            # Elegoo print ticks are in seconds.
+            cur_ticks = status.print_info.current_ticks or 0.0
+            tot_ticks = status.print_info.total_ticks or 0.0
+            self.state.remaining_time = max(0, int(tot_ticks - cur_ticks))
+
             
             # Map speed level (1=silent, 2=standard, 3=sport, 4=ludicrous)
             pct = status.print_info.print_speed
