@@ -196,10 +196,11 @@ class ElegooCentauriClient:
             self.state.total_layers = status.print_info.total_layer or 0
             
             # Map remaining time from ticks if available (ticks are typically ms or seconds depending on FW)
-            # Elegoo print ticks are in seconds.
+            # Elegoo print ticks are in seconds. We divide by 60 to store in minutes to match Bambuddy's expected schema.
             cur_ticks = status.print_info.current_ticks or 0.0
             tot_ticks = status.print_info.total_ticks or 0.0
-            self.state.remaining_time = max(0, int(tot_ticks - cur_ticks))
+            self.state.remaining_time = max(0, int((tot_ticks - cur_ticks) / 60))
+
 
             
             # Map speed level (1=silent, 2=standard, 3=sport, 4=ludicrous)
