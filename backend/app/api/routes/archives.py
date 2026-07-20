@@ -2144,12 +2144,29 @@ async def get_thumbnail(
     """
     service = ArchiveService(db)
     archive = await service.get_archive(archive_id)
-    if not archive or not archive.thumbnail_path:
+    if not archive:
+        raise HTTPException(404, "Archive not found")
+
+    thumb_path = settings.base_dir / archive.thumbnail_path if archive.thumbnail_path else None
+
+    # On-demand thumbnail resolution for G-code archives missing thumbnail_path
+    if not thumb_path or not thumb_path.exists():
+        if archive.file_path:
+            gcode_file_path = settings.base_dir / archive.file_path
+            if gcode_file_path.exists() and gcode_file_path.suffix.lower() == ".gcode":
+                from backend.app.api.routes.library import extract_gcode_thumbnail
+                thumb_bytes = extract_gcode_thumbnail(gcode_file_path)
+                if thumb_bytes:
+                    tfile = gcode_file_path.parent / "thumbnail.png"
+                    tfile.write_bytes(thumb_bytes)
+                    rel_tpath = str(tfile.relative_to(settings.base_dir))
+                    archive.thumbnail_path = rel_tpath
+                    await db.commit()
+                    thumb_path = tfile
+
+    if not thumb_path or not thumb_path.exists():
         raise HTTPException(404, "Thumbnail not found")
 
-    thumb_path = settings.base_dir / archive.thumbnail_path
-    if not thumb_path.exists():
-        raise HTTPException(404, "Thumbnail file not found")
 
     # Use file modification time as ETag to bust cache
     mtime = int(thumb_path.stat().st_mtime)
