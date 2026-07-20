@@ -188,10 +188,12 @@ class ElegooCentauriClient:
         self.state.chamber_light = bool(status.light.get("SecondLight", 0))
 
         if status.print_info:
-            self.state.current_print = status.print_info.filename
-            self.state.subtask_name = status.print_info.filename
-            self.state.gcode_file = status.print_info.filename
+            if status.print_info.filename:
+                self.state.current_print = status.print_info.filename
+                self.state.subtask_name = status.print_info.filename
+                self.state.gcode_file = status.print_info.filename
             self.state.progress = float(status.print_info.progress or 0)
+
             self.state.layer_num = status.print_info.current_layer or 0
             self.state.total_layers = status.print_info.total_layer or 0
             
@@ -262,6 +264,10 @@ class ElegooCentauriClient:
             if state_str in ("IDLE", "FINISH", "FAILED"):
                 self._was_running = False
                 self._completion_triggered = False
+                self.state.current_print = ""
+                self.state.subtask_name = ""
+                self.state.gcode_file = ""
+
 
 
             if self.state.layer_num != self._last_layer_num:
@@ -341,7 +347,12 @@ class ElegooCentauriClient:
     ) -> bool:
         if not self._printer:
             return False
+        # Optimistically record filename on state so current_print is available during PREPARE
+        self.state.current_print = filename
+        self.state.subtask_name = filename
+        self.state.gcode_file = filename
         return self._run_async(self._printer.start_print(filename, storage="local"))
+
 
     def stop_print(self) -> bool:
         if not self._printer:
