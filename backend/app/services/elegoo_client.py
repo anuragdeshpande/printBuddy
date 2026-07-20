@@ -314,9 +314,14 @@ class ElegooCentauriClient:
 
     def _run_async(self, coro) -> bool:
         if self._loop and self._loop.is_running():
-            self._loop.create_task(coro)
+            task = self._loop.create_task(coro)
+            def _handle_done(t: asyncio.Task):
+                if not t.cancelled() and t.exception():
+                    logger.error("Elegoo async task failed: %s", t.exception())
+            task.add_done_callback(_handle_done)
             return True
         return False
+
 
     # --- Control Interface implementation ---
 
