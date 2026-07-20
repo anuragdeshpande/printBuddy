@@ -693,6 +693,12 @@ def register_expected_print(
         base = filename[:-4]
         _expected_prints[(printer_id, base)] = archive_id
         _expected_prints[(printer_id, f"{base}.gcode")] = archive_id
+        _expected_prints[(printer_id, f"{base}.gcode.3mf")] = archive_id
+    elif filename.endswith(".gcode"):
+        base = filename[:-6]
+        _expected_prints[(printer_id, base)] = archive_id
+        _expected_prints[(printer_id, f"{base}.3mf")] = archive_id
+        _expected_prints[(printer_id, f"{base}.gcode.3mf")] = archive_id
     # Store AMS mapping for usage tracking at print completion
     if ams_mapping is not None:
         _print_ams_mappings[archive_id] = ams_mapping
@@ -708,7 +714,9 @@ def register_expected_print(
         if filename.endswith(".3mf"):
             base = filename[:-4]
             _expected_print_creators[(printer_id, base)] = created_by_id
-            _expected_print_creators[(printer_id, f"{base}.gcode")] = created_by_id
+        elif filename.endswith(".gcode"):
+            base = filename[:-6]
+            _expected_print_creators[(printer_id, base)] = created_by_id
     # Record registration time for TTL-based eviction
     _registered_at = time.monotonic()
     _expected_print_registered_at[(printer_id, filename)] = _registered_at
@@ -716,6 +724,11 @@ def register_expected_print(
         base = filename[:-4]
         _expected_print_registered_at[(printer_id, base)] = _registered_at
         _expected_print_registered_at[(printer_id, f"{base}.gcode")] = _registered_at
+    elif filename.endswith(".gcode"):
+        base = filename[:-6]
+        _expected_print_registered_at[(printer_id, base)] = _registered_at
+        _expected_print_registered_at[(printer_id, f"{base}.3mf")] = _registered_at
+
     logging.getLogger(__name__).info(
         f"Registered expected print: printer={printer_id}, file={filename}, archive={archive_id}, ams_mapping={ams_mapping}, plate_id={plate_id}"
     )
