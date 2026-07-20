@@ -2645,15 +2645,26 @@ async def on_print_start(printer_id: int, data: dict):
                     except Exception:
                         pass
 
-                # Set up energy tracking (#941: persist start on archive row)
-                await _record_energy_start(archive, printer_id, db, context="expected-print")
+                # Extract and persist thumbnail for Elegoo G-code expected prints if missing
+                if not archive.thumbnail_path and archive.file_path:
+                    gcode_full_path = app_settings.base_dir / archive.file_path
+                    if gcode_full_path.exists() and gcode_full_path.suffix.lower() == ".gcode":
+                        from backend.app.api.routes.library import extract_gcode_thumbnail
+                        tb_bytes = extract_gcode_thumbnail(gcode_full_path)
+                        if tb_bytes:
+                            tfile = gcode_full_path.parent / "thumbnail.png"
+                            tfile.write_bytes(tb_bytes)
+                            archive.thumbnail_path = str(tfile.relative_to(app_settings.base_dir))
+                            logger.info("[CALLBACK] Extracted and saved expected archive %s thumbnail to %s", archive.id, archive.thumbnail_path)
 
                 await ws_manager.send_archive_updated(
                     {
                         "id": archive.id,
                         "status": "printing",
+                        "thumbnail_path": archive.thumbnail_path,
                     }
                 )
+
 
                 # Send notification with archive data (reprint/scheduled)
                 if not notification_sent:
