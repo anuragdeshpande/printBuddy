@@ -3166,6 +3166,7 @@ async def on_print_start(printer_id: int, data: dict):
                 # Elegoo CC1 Thumbnail extraction from active gcode file
                 from backend.app.services.elegoo_client import is_elegoo_model
                 if printer and is_elegoo_model(printer.model) and subtask_name:
+                    try:
                         # Step 1: Try to locate the local file inside printBuddy server directories first
                         # (since the printer's HTTP server blocks requests with '500 device busy' during prints)
                         local_gcode_path = None
@@ -3232,6 +3233,7 @@ async def on_print_start(printer_id: int, data: dict):
                             logger.info("Elegoo: successfully extracted and saved thumbnail to %s", thumb_file)
                     except Exception as ex:
                         logger.warning("Elegoo: failed to extract start-time gcode thumbnail: %s", ex, exc_info=True)
+
 
 
                 db.add(fallback_archive)
