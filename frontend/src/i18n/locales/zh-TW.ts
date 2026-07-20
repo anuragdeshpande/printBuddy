@@ -4020,6 +4020,8 @@ export default {
     refreshPresets: '重新整理',
     refreshPresetsTitle: '重新整理預設 — 擷取最新的雲端與打包設定清單（在 Bambu Studio 或 Bambu Handy 中刪除預設後使用）',
     allPresetsRequired: '必須選擇所有預設',
+    useEmbedded: '使用檔案的內建設定',
+    useEmbeddedHint: '依設計者的設定（外牆、填充、耗材）切片，而非上方的設定檔。因您的印表機與檔案相符而可用。',
     enqueuing: '提交切片任務中…',
     queued: '已排隊…',
     failed: '切片失敗。請檢查切片器 sidecar 日誌。',

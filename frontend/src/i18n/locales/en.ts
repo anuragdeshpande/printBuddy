@@ -4066,6 +4066,8 @@ export default {
     refreshPresets: 'Refresh',
     refreshPresetsTitle: 'Refresh presets — fetch the latest cloud and bundled listings (use after deleting a preset in Bambu Studio or Bambu Handy)',
     allPresetsRequired: 'All presets must be selected',
+    useEmbedded: "Use the file's built-in settings",
+    useEmbeddedHint: "Slice it the way the designer set it up (walls, infill, filament) instead of the profiles above. Offered because your printer matches the file's.",
     enqueuing: 'Submitting slice job…',
     queued: 'Queued…',
     failed: 'Slicing failed. Check the slicer sidecar logs.',

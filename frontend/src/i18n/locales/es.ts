@@ -4035,6 +4035,8 @@ export default {
     refreshPresets: 'Actualizar',
     refreshPresetsTitle: 'Actualizar preajustes — recuperar los listados más recientes de la nube y los paquetes (úselo tras eliminar un preajuste en Bambu Studio o Bambu Handy)',
     allPresetsRequired: 'Deben seleccionarse todos los preajustes',
+    useEmbedded: 'Usar la configuración incorporada del archivo',
+    useEmbeddedHint: 'Laminar tal como lo configuró el diseñador (perímetros, relleno, filamento) en lugar de los perfiles de arriba. Disponible porque tu impresora coincide con la del archivo.',
     enqueuing: 'Enviando el trabajo de laminado…',
     queued: 'En cola…',
     failed: 'Error al laminar. Consulte los registros del contenedor auxiliar del laminador.',

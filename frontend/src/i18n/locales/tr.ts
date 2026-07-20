@@ -4022,6 +4022,8 @@ export default {
     refreshPresets: 'Yenile',
     refreshPresetsTitle: "Ön ayarları yenile — en güncel bulut ve paketli listeleri getir (Bambu Studio veya Bambu Handy'de bir ön ayar sildikten sonra kullanın)",
     allPresetsRequired: 'Tüm ön ayarlar seçilmelidir',
+    useEmbedded: 'Dosyanın yerleşik ayarlarını kullan',
+    useEmbeddedHint: 'Yukarıdaki profiller yerine tasarımcının ayarladığı gibi (duvarlar, dolgu, filament) dilimle. Yazıcınız dosyayla eşleştiği için sunuluyor.',
     enqueuing: 'Dilimleme işi gönderiliyor…',
     queued: 'Kuyrukta…',
     failed: 'Dilimleme başarısız. Dilimleyici yardımcı bileşen günlüklerini kontrol edin.',

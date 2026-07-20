@@ -4032,6 +4032,8 @@ export default {
     refreshPresets: '再読み込み',
     refreshPresetsTitle: 'プリセットを再取得 — クラウドとバンドルの最新リストを取得します（Bambu Studio または Bambu Handy でプリセットを削除した後にお使いください）',
     allPresetsRequired: 'すべてのプリセットを選択する必要があります',
+    useEmbedded: 'ファイルに埋め込まれた設定を使用',
+    useEmbeddedHint: '上のプロファイルではなく、設計者が設定したとおり（ウォール、インフィル、フィラメント）にスライスします。お使いのプリンターがファイルと一致するため利用できます。',
     enqueuing: 'スライスジョブを送信中…',
     queued: '待機中…',
     failed: 'スライスに失敗。サイドカーのログを確認してください。',

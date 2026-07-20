@@ -1543,6 +1543,11 @@ export interface SliceRequest {
   // "Textured PEI Plate", "Smooth PEI Plate", "Cool Plate (SuperTack)",
   // "Supertack Plate".
   bed_type?: string | null;
+  // "Slice as designed" (#2611). 3MF only: slice using the file's embedded
+  // project_settings.config (the designer's own wall count, infill, etc.)
+  // instead of the picked profile triplet. The preset refs above are still
+  // required by the backend validator but go unused on this path.
+  use_embedded_settings?: boolean;
 }
 
 // GET /api/v1/slicer/presets — unified listing across cloud / local / standard.

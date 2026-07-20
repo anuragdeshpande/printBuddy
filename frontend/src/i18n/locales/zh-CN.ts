@@ -4020,6 +4020,8 @@ export default {
     refreshPresets: '刷新',
     refreshPresetsTitle: '刷新预设 — 获取最新的云端和打包配置列表（在 Bambu Studio 或 Bambu Handy 中删除预设后使用）',
     allPresetsRequired: '必须选择所有预设',
+    useEmbedded: '使用文件的内置设置',
+    useEmbeddedHint: '按设计者的设置（壁、填充、耗材）切片，而非上方的配置文件。因您的打印机与文件匹配而可用。',
     enqueuing: '提交切片任务中…',
     queued: '已排队…',
     failed: '切片失败。请检查切片器 sidecar 日志。',

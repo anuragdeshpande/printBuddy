@@ -4032,6 +4032,8 @@ export default {
     refreshPresets: 'Aktualisieren',
     refreshPresetsTitle: 'Profile neu laden — die aktuellen Cloud- und Bundle-Listen abrufen (nach dem Löschen eines Profils in Bambu Studio oder Bambu Handy verwenden)',
     allPresetsRequired: 'Alle Profile müssen ausgewählt sein',
+    useEmbedded: 'Eingebettete Einstellungen der Datei verwenden',
+    useEmbeddedHint: 'So slicen, wie der Ersteller es angelegt hat (Wände, Füllung, Filament), statt mit den obigen Profilen. Verfügbar, weil dein Drucker zur Datei passt.',
     enqueuing: 'Slice-Auftrag wird übermittelt…',
     queued: 'In Warteschlange…',
     failed: 'Slicen fehlgeschlagen. Logs des Slicer-Sidecars prüfen.',

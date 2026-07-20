@@ -3821,6 +3821,8 @@ export default {
     refreshPresets: '새로 고침',
     refreshPresetsTitle: '프리셋 새로 고침 — 최신 클라우드 및 번들 목록 가져오기 (Bambu Studio 또는 Bambu Handy에서 프리셋 삭제 후 사용)',
     allPresetsRequired: '모든 프리셋을 선택해야 합니다',
+    useEmbedded: '파일에 포함된 설정 사용',
+    useEmbeddedHint: '위 프로필 대신 디자이너가 설정한 대로(벽, 내부 채움, 필라멘트) 슬라이싱합니다. 프린터가 파일과 일치하여 사용할 수 있습니다.',
     enqueuing: '슬라이싱 작업 제출 중…',
     queued: '대기 중…',
     failed: '슬라이싱 실패. 슬라이서 사이드카 로그를 확인하세요.',

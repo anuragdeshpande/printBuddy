@@ -4020,6 +4020,8 @@ export default {
     refreshPresets: 'Aggiorna',
     refreshPresetsTitle: 'Aggiorna i preset — recupera gli elenchi più recenti dal cloud e dai bundle (da usare dopo aver eliminato un preset in Bambu Studio o Bambu Handy)',
     allPresetsRequired: 'Tutti i preset devono essere selezionati',
+    useEmbedded: 'Usa le impostazioni integrate del file',
+    useEmbeddedHint: 'Slicia come impostato dal designer (pareti, riempimento, filamento) invece dei profili sopra. Disponibile perché la tua stampante corrisponde a quella del file.',
     enqueuing: 'Invio lavoro di slicing…',
     queued: 'In coda…',
     failed: 'Slicing fallito. Controlla i log del sidecar.',
