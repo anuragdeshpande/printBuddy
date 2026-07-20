@@ -229,20 +229,18 @@ class ElegooCentauriClient:
                 state_str = "FINISH"
             elif print_status_code == 14:
                 state_str = "FAILED"
-            elif print_status_code is not None and print_status_code != 0:
-                # All other non-zero codes: HOMING=1, FILE_CHECKING=10, PRINTER_CHECKING=11,
-                # RESUMING=12, PRINTING=13, AUTO_LEVELING=15, PREHEATING=16,
-                # RESONANCE_TESTING=17, PRINT_START=18, AUTO_LEVELING_COMPLETED=19,
-                # PREHEATING_COMPLETED=20, HOMING_COMPLETED=21, RESONANCE_TESTING_COMPLETED=22,
-                # AUTO_FEEDING=23, UNLOADING=24, FILAMENT_SWITCHING=27, etc.
-                # All are "active" states — treat as RUNNING so the watchdog doesn't
-                # falsely revert the queue item while the printer is preparing.
+            elif print_status_code in (1, 12, 13, 27, 28, 29):
                 state_str = "RUNNING"
+            elif print_status_code is not None and print_status_code != 0:
+                # Other non-zero codes: FILE_CHECKING=10, PRINTER_CHECKING=11, AUTO_LEVELING=15,
+                # PREHEATING=16, RESONANCE_TESTING=17, PRINT_START=18, etc.
+                state_str = "PREPARE"
 
             self.state.state = state_str
 
+
             # Trigger state callbacks
-            if state_str == "RUNNING" and not self._was_running:
+            if state_str in ("RUNNING", "PREPARE") and not self._was_running:
                 self._was_running = True
                 if self.on_print_start:
                     self.on_print_start({
@@ -259,9 +257,10 @@ class ElegooCentauriClient:
                         "status": "success",
                     })
 
-            if state_str != "RUNNING":
+            if state_str in ("IDLE", "FINISH", "FAILED"):
                 self._was_running = False
                 self._completion_triggered = False
+
 
             if self.state.layer_num != self._last_layer_num:
                 self._last_layer_num = self.state.layer_num
