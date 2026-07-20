@@ -961,9 +961,10 @@ def get_derived_status_name(state: PrinterState, model: str | None = None) -> st
     if 0 <= state.stg_cur < 255:
         return get_stage_name(state.stg_cur)
 
-    # If not in RUNNING state, no derived status needed
-    if state.state != "RUNNING":
+    # If not in RUNNING or PREPARE state, no derived status needed
+    if state.state not in ("RUNNING", "PREPARE"):
         return None
+
 
     # Check if we're in an early phase where temperatures are heating
     temps = state.temperatures or {}

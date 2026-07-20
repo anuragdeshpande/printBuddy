@@ -218,13 +218,16 @@ class ElegooCentauriClient:
             else:
                 self.state.speed_level = 2
 
-            # Map print status code to Bambu-compatible string
+            # Map print status code to Bambu-compatible string and stage
             print_status_code = status.print_status
             state_str = "IDLE"
+            stg_cur = -1
+
             if print_status_code == 0:
                 state_str = "IDLE"
             elif print_status_code in (5, 6):
                 state_str = "PAUSE"
+                stg_cur = 16
             elif print_status_code in (7, 8):
                 state_str = "IDLE"
             elif print_status_code == 9:
@@ -233,12 +236,23 @@ class ElegooCentauriClient:
                 state_str = "FAILED"
             elif print_status_code in (1, 12, 13, 27, 28, 29):
                 state_str = "RUNNING"
+                stg_cur = 0
             elif print_status_code is not None and print_status_code != 0:
-                # Other non-zero codes: FILE_CHECKING=10, PRINTER_CHECKING=11, AUTO_LEVELING=15,
-                # PREHEATING=16, RESONANCE_TESTING=17, PRINT_START=18, etc.
                 state_str = "PREPARE"
+                # Map Elegoo preparation sub-states to Bambu stage codes for granular UI stage names
+                ELEGOO_PREP_STAGES = {
+                    10: 52,  # File Checking / Checking Material
+                    11: 44,  # Printer Checking / Auto Check: Platform
+                    15: 1,   # Auto Bed Leveling
+                    16: 2,   # Heatbed / Nozzle Preheating
+                    17: 3,   # Resonance Testing / Vibration Compensation
+                    18: 74,  # Starting Print / Preparing
+                }
+                stg_cur = ELEGOO_PREP_STAGES.get(print_status_code, 74)
 
             self.state.state = state_str
+            self.state.stg_cur = stg_cur
+
 
 
             # Trigger state callbacks
