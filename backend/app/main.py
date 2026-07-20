@@ -3166,37 +3166,73 @@ async def on_print_start(printer_id: int, data: dict):
                 # Elegoo CC1 Thumbnail extraction from active gcode file
                 from backend.app.services.elegoo_client import is_elegoo_model
                 if printer and is_elegoo_model(printer.model) and subtask_name:
-                    try:
-                        import httpx
-                        clean_subtask = subtask_name.lstrip("/")
-                        parts = clean_subtask.split("/")
-                        folder = parts[0] if len(parts) > 1 and parts[0] in ("local", "usb", "udisk") else "local"
-                        simple_filename = "/".join(parts[1:]) if len(parts) > 1 and parts[0] in ("local", "usb", "udisk") else clean_subtask
+                        # Step 1: Try to locate the local file inside printBuddy server directories first
+                        # (since the printer's HTTP server blocks requests with '500 device busy' during prints)
+                        local_gcode_path = None
                         
-                        # Try to read the beginning of the gcode via HTTP Range request to extract thumbnail
-                        gcode_url = f"http://{printer.ip_address}/{folder}/{simple_filename}"
-                        logger.info("Elegoo: fetching gcode range to extract thumbnail from %s", gcode_url)
-                        async with httpx.AsyncClient(timeout=10.0) as http_client:
-                            headers = {"Range": "bytes=0-1048576"} # First 1MB
-                            response = await http_client.get(gcode_url, headers=headers)
-                            if response.status_code in (200, 206):
-                                from backend.app.api.routes.printers import extract_gcode_thumbnail
-                                thumb_bytes = extract_gcode_thumbnail(response.content)
-                                if thumb_bytes:
-                                    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-                                    archive_name = f"{timestamp_str}_{print_name}"
-                                    printer_folder = str(printer_id)
-                                    archive_dir = app_settings.archive_dir / printer_folder / archive_name
-                                    archive_dir.mkdir(parents=True, exist_ok=True)
+                        # Check expected prints cache or database archives to find the local file path
+                        expected_archive = None
+                        if expected_archive_id:
+                            expected_res = await db.execute(select(PrintArchive).where(PrintArchive.id == expected_archive_id))
+                            expected_archive = expected_res.scalar_one_or_none()
+                        
+                        if expected_archive and expected_archive.file_path:
+                            cand_path = app_settings.base_dir / expected_archive.file_path
+                            if cand_path.exists():
+                                local_gcode_path = cand_path
+                        
+                        # Fallback: scan local folder matching subtask_name
+                        if not local_gcode_path:
+                            for folder_name in os.listdir(app_settings.archive_dir / "unassigned"):
+                                if subtask_name in folder_name:
+                                    dir_path = app_settings.archive_dir / "unassigned" / folder_name
+                                    if dir_path.is_dir():
+                                        for fname in os.listdir(dir_path):
+                                            if fname.endswith(".gcode"):
+                                                local_gcode_path = dir_path / fname
+                                                break
+                                if local_gcode_path:
+                                    break
                                     
-                                    thumb_file = archive_dir / "thumbnail.png"
-                                    thumb_file.write_bytes(thumb_bytes)
-                                    fallback_archive.thumbnail_path = str(thumb_file.relative_to(app_settings.base_dir))
-                                    # Since we successfully archived it with a thumbnail, prevent the warning banner
-                                    fallback_archive.extra_data["no_3mf_available"] = False
-                                    logger.info("Elegoo: successfully extracted and saved thumbnail to %s", thumb_file)
+                        thumb_bytes = None
+                        if local_gcode_path:
+                            logger.info("Elegoo: parsing local gcode file to extract thumbnail: %s", local_gcode_path)
+                            from backend.app.api.routes.library import extract_gcode_thumbnail as local_extract
+                            thumb_bytes = local_extract(local_gcode_path)
+                            
+                        # Step 2: Fallback to HTTP request if local file was not found or failed to parse
+                        if not thumb_bytes:
+                            import httpx
+                            clean_subtask = subtask_name.lstrip("/")
+                            parts = clean_subtask.split("/")
+                            folder = parts[0] if len(parts) > 1 and parts[0] in ("local", "usb", "udisk") else "local"
+                            simple_filename = "/".join(parts[1:]) if len(parts) > 1 and parts[0] in ("local", "usb", "udisk") else clean_subtask
+                            
+                            gcode_url = f"http://{printer.ip_address}/{folder}/{simple_filename}"
+                            logger.info("Elegoo: fetching gcode range to extract thumbnail from %s", gcode_url)
+                            async with httpx.AsyncClient(timeout=10.0) as http_client:
+                                headers = {"Range": "bytes=0-1048576"} # First 1MB
+                                response = await http_client.get(gcode_url, headers=headers)
+                                if response.status_code in (200, 206):
+                                    from backend.app.api.routes.printers import extract_gcode_thumbnail
+                                    thumb_bytes = extract_gcode_thumbnail(response.content)
+                                    
+                        if thumb_bytes:
+                            timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+                            archive_name = f"{timestamp_str}_{print_name}"
+                            printer_folder = str(printer_id)
+                            archive_dir = app_settings.archive_dir / printer_folder / archive_name
+                            archive_dir.mkdir(parents=True, exist_ok=True)
+                            
+                            thumb_file = archive_dir / "thumbnail.png"
+                            thumb_file.write_bytes(thumb_bytes)
+                            fallback_archive.thumbnail_path = str(thumb_file.relative_to(app_settings.base_dir))
+                            # Since we successfully archived it with a thumbnail, prevent the warning banner
+                            fallback_archive.extra_data["no_3mf_available"] = False
+                            logger.info("Elegoo: successfully extracted and saved thumbnail to %s", thumb_file)
                     except Exception as ex:
-                        logger.warning("Elegoo: failed to extract start-time gcode thumbnail: %s", ex)
+                        logger.warning("Elegoo: failed to extract start-time gcode thumbnail: %s", ex, exc_info=True)
+
 
                 db.add(fallback_archive)
                 await db.commit()
