@@ -4020,6 +4020,8 @@ export default {
     refreshPresets: 'Atualizar',
     refreshPresetsTitle: 'Atualizar predefinições — buscar as listagens mais recentes da nuvem e dos pacotes (use após excluir uma predefinição no Bambu Studio ou Bambu Handy)',
     allPresetsRequired: 'Todas as predefinições devem ser selecionadas',
+    useEmbedded: 'Usar as configurações incorporadas do arquivo',
+    useEmbeddedHint: 'Fatiar como o designer configurou (paredes, preenchimento, filamento) em vez dos perfis acima. Disponível porque sua impressora corresponde à do arquivo.',
     enqueuing: 'Enviando trabalho de fatiamento…',
     queued: 'Na fila…',
     failed: 'Falha ao fatiar. Verifique os logs do sidecar.',

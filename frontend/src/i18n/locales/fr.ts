@@ -4021,6 +4021,8 @@ export default {
     refreshPresets: 'Actualiser',
     refreshPresetsTitle: 'Actualiser les préréglages — récupérer les dernières listes Cloud et bundle (à utiliser après avoir supprimé un préréglage dans Bambu Studio ou Bambu Handy)',
     allPresetsRequired: 'Tous les préréglages doivent être sélectionnés',
+    useEmbedded: 'Utiliser les réglages intégrés du fichier',
+    useEmbeddedHint: "Slicer tel que le concepteur l'a configuré (parois, remplissage, filament) au lieu des profils ci-dessus. Proposé car votre imprimante correspond à celle du fichier.",
     enqueuing: 'Envoi du travail de découpage…',
     queued: 'En file d\'attente…',
     failed: 'Échec du découpage. Vérifiez les journaux du sidecar.',
