@@ -1011,8 +1011,45 @@ async def get_printer_cover(
 
     from backend.app.services.elegoo_client import is_elegoo_model
     if is_elegoo_model(printer.model):
+        import os
+        from backend.app.api.routes.library import extract_gcode_thumbnail as extract_local_gcode_thumbnail
+        
+        import re
+        def norm_name(s: str) -> str:
+            clean = s.split("/")[-1].replace(".gcode.3mf", "").replace(".gcode", "").replace(".3mf", "")
+            return re.sub(r"[^a-zA-Z0-9]", "", clean).lower()
+            
+        base_norm = norm_name(subtask_name)
+        
+        local_gcode_path = None
+        archive_search_dirs = [
+            settings.archive_dir / str(printer_id),
+            settings.archive_dir / "unassigned",
+        ]
+        for sdir in archive_search_dirs:
+            if sdir.exists():
+                for folder_name in os.listdir(sdir):
+                    if base_norm and base_norm in norm_name(folder_name):
+                        dir_path = sdir / folder_name
+                        if dir_path.is_dir():
+                            for fname in os.listdir(dir_path):
+                                if fname.endswith(".gcode"):
+                                    local_gcode_path = dir_path / fname
+                                    break
+                    if local_gcode_path:
+                        break
+            if local_gcode_path:
+                break
+
+                
+        if local_gcode_path:
+            logger.info("Elegoo cover: parsing local gcode file: %s", local_gcode_path)
+            thumb_bytes = extract_local_gcode_thumbnail(local_gcode_path)
+            if thumb_bytes:
+                return Response(content=thumb_bytes, media_type="image/png")
+
+        # Step 2: Fallback to HTTP request to printer if not found locally
         import httpx
-        clean_subtask = subtask_name.lstrip("/")
         parts = clean_subtask.split("/")
         if len(parts) > 1 and parts[0] in ("local", "usb", "udisk"):
             simple_filename = "/".join(parts[1:])
@@ -1050,6 +1087,7 @@ async def get_printer_cover(
                 logger.warning("Failed to extract Elegoo thumbnail via range request: %s", e)
                 
         raise HTTPException(404, f"No cover/thumbnail available for Elegoo printer print: {subtask_name}")
+
 
 
     # Resolve the active plate. Precedence (#1166):
