@@ -1067,6 +1067,9 @@ def resolve_expected_tray(
         return None
     if 4 <= raw_slot <= 15:
         return raw_slot
+    # 24-27 = A2L AMS-Lite (normalised unit 6) global tray ids, already resolved.
+    if 24 <= raw_slot <= 27:
+        return raw_slot
     return None
 
 
