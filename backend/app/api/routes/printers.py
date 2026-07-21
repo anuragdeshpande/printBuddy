@@ -2720,6 +2720,17 @@ async def configure_ams_slot(
             except Exception:
                 pass
 
+    # Register a read-back verification (#2582) so the tray telemetry that the
+    # status push below returns can confirm the printer accepted this manual
+    # slot configuration. Mirrors the inventory/assignment path.
+    client.register_assignment_verification(
+        ams_id=ams_id,
+        tray_id=tray_id,
+        tray_info_idx=effective_tray_info_idx,
+        tray_color=tray_color,
+        cali_idx=cali_idx,
+    )
+
     # Request fresh status push from printer so frontend gets updated data via WebSocket
     logger.info("[configure_ams_slot] Requesting status update from printer")
     update_result = client.request_status_update()

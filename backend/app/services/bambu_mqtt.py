@@ -490,6 +490,12 @@ class BambuMQTTClient:
     # Counter for generating unique MQTT client IDs across instances.
     _client_instance_counter: int = 0
 
+    # #2582: how long to wait for the AMS telemetry to echo back an assignment
+    # before declaring it un-confirmed. The printer re-broadcasts tray state
+    # every few seconds (and register_assignment_verification nudges a fresh
+    # pushall), so this only has to survive a couple of idle push intervals.
+    ASSIGNMENT_VERIFY_TIMEOUT: float = 30.0
+
     def __init__(
         self,
         ip_address: str,
@@ -505,6 +511,7 @@ class BambuMQTTClient:
         on_drying_complete: Callable[[int], None] | None = None,
         on_print_running_observed: Callable[[dict], None] | None = None,
         on_finish_photo_moment: Callable[[dict], None] | None = None,
+        on_assignment_verified: Callable[[int, int, bool, dict], None] | None = None,
     ):
         self.ip_address = ip_address
         self.serial_number = serial_number
@@ -541,6 +548,19 @@ class BambuMQTTClient:
         # stage 22 never arrives (cancel mid-print, external-spool-
         # only prints, HMS halt before unload, firmware variants).
         self.on_finish_photo_moment = on_finish_photo_moment
+        # #2582: fired after a spool assignment (ams_filament_setting +
+        # extrusion_cali_sel) once the tray's telemetry either confirms the
+        # push landed or a timeout elapses without it. Receives
+        # (ams_id, tray_id, verified: bool, detail: dict). Lets the frontend
+        # tell the user "loaded" vs "assignment didn't take" instead of the
+        # historic fire-and-forget silence that made the AMS/Studio hand-off
+        # feel random. See _check_assignment_verifications.
+        self.on_assignment_verified = on_assignment_verified
+        # Pending read-back verifications, keyed by (ams_id, tray_id). Each
+        # value is the desired end-state we just pushed plus a monotonic
+        # deadline. Populated by register_assignment_verification, drained by
+        # _check_assignment_verifications on every AMS push.
+        self._pending_assignments: dict[tuple[int, int], dict] = {}
         # Per-AMS previous dry_time, used to detect the falling edge above.
         # Seeded lazily as we observe each AMS unit.
         self._previous_dry_times: dict[int, int] = {}
@@ -838,6 +858,11 @@ class BambuMQTTClient:
             self._report_messages_since_connect = 0
             self._last_ams_cmd_time = 0.0
             self._ams_cmd_unanswered = 0
+            # Drop any assignment verifications that were mid-flight before the
+            # reconnect — their deadlines are stale and the tray state we would
+            # compare against is about to be re-pushed from scratch (#2582).
+            # Dropping is silent (no failure event) on purpose.
+            self._pending_assignments.clear()
             client.subscribe(self.topic_subscribe)
             # Subscribe to request topic for ams_mapping capture (if supported by broker)
             if self._request_topic_supported:
@@ -2331,6 +2356,147 @@ class BambuMQTTClient:
                 # Pass merged AMS data (not raw ams_list) — partial MQTT updates
                 # may lack fields like 'remain' that the merged state preserves
                 self.on_ams_change(merged_ams)
+
+        # #2582: read-back check runs on EVERY AMS push, not just hash changes.
+        # The change hash keys on tray_type/tag_uid/remain — NOT tray_info_idx
+        # or cali_idx — so an assignment that only swaps the filament id on an
+        # already-loaded slot would not flip the hash, and gating the check on
+        # it would miss exactly the confirmation we are after.
+        if self._pending_assignments:
+            self._check_assignment_verifications()
+
+    def register_assignment_verification(
+        self,
+        ams_id: int,
+        tray_id: int,
+        tray_info_idx: str,
+        tray_color: str,
+        cali_idx: int | None,
+    ) -> None:
+        """Record an assignment we just pushed so subsequent AMS telemetry can
+        confirm the tray actually accepted it (#2582).
+
+        Called right after ``ams_set_filament_setting`` + ``extrusion_cali_sel``.
+        ``tray_info_idx`` is the primary signal — the slicer/printer echoes the
+        accepted filament id back in the per-tray push, so a match means the
+        setting landed. ``cali_idx`` (when >= 0) is verified as a secondary
+        signal so we can specifically flag "filament loaded but K-profile not
+        applied", which is the exact symptom the reporter chased via flow-cal.
+
+        A blank ``tray_info_idx`` means we had nothing resolvable to send, so
+        there is nothing to verify and no record is stored.
+        """
+        want_idx = (tray_info_idx or "").strip().upper()
+        if not want_idx:
+            return
+        self._pending_assignments[(ams_id, tray_id)] = {
+            "tray_info_idx": want_idx,
+            "tray_color": (tray_color or "").strip().upper(),
+            "cali_idx": cali_idx,
+            "deadline": time.monotonic() + self.ASSIGNMENT_VERIFY_TIMEOUT,
+            "last_seen_idx": None,
+        }
+
+    def _find_verify_tray(self, ams_id: int, tray_id: int) -> dict | None:
+        """Locate the live tray dict for a pending verification.
+
+        External spools (ams_id 255) live in ``vt_tray`` under global ids
+        254/255; regular and HT AMS trays live under ``ams[].tray[]``. HT units
+        report a single tray whose id may not equal the logical tray_id, so fall
+        back to the sole tray when an id match fails.
+        """
+        raw = self.state.raw_data or {}
+        if ams_id == 255:
+            want_ext = 254 + tray_id
+            for vt in raw.get("vt_tray", []) or []:
+                if isinstance(vt, dict) and str(vt.get("id")) == str(want_ext):
+                    return vt
+            return None
+        for unit in raw.get("ams", []) or []:
+            if str(unit.get("id")) != str(ams_id):
+                continue
+            trays = unit.get("tray", []) or []
+            for tray in trays:
+                if str(tray.get("id")) == str(tray_id):
+                    return tray
+            if ams_id >= 128 and len(trays) == 1:
+                return trays[0]
+            return None
+        return None
+
+    def _check_assignment_verifications(self) -> None:
+        """Compare each pending assignment against live tray telemetry and fire
+        ``on_assignment_verified`` on a match or once the deadline passes.
+
+        Runs on every AMS push. Non-matching-but-still-within-window entries are
+        left in place for the next push. The timeout branch only fires when a
+        later push arrives after the deadline; if the printer goes silent we
+        simply never confirm, which is preferable to inventing a failure.
+        """
+        now = time.monotonic()
+        for key, want in list(self._pending_assignments.items()):
+            ams_id, tray_id = key
+            tray = self._find_verify_tray(ams_id, tray_id)
+            actual_idx = str((tray or {}).get("tray_info_idx") or "").strip().upper()
+            if tray is not None and actual_idx:
+                want["last_seen_idx"] = actual_idx
+            if actual_idx and actual_idx == want["tray_info_idx"]:
+                self._pending_assignments.pop(key, None)
+                kprofile_applied = True
+                want_cali = want.get("cali_idx")
+                if want_cali is not None and want_cali >= 0:
+                    actual_cali = tray.get("cali_idx")
+                    kprofile_applied = actual_cali == want_cali
+                self._fire_assignment_verified(
+                    ams_id,
+                    tray_id,
+                    True,
+                    {
+                        "tray_info_idx": actual_idx,
+                        "kprofile_applied": kprofile_applied,
+                    },
+                )
+            elif now >= want["deadline"]:
+                self._pending_assignments.pop(key, None)
+                self._fire_assignment_verified(
+                    ams_id,
+                    tray_id,
+                    False,
+                    {
+                        "expected_tray_info_idx": want["tray_info_idx"],
+                        "actual_tray_info_idx": want.get("last_seen_idx"),
+                        # True when we saw the tray at least once (so the push
+                        # channel is alive and the printer really stored a
+                        # different/blank id) vs never observing it at all.
+                        "saw_tray": want.get("last_seen_idx") is not None,
+                    },
+                )
+
+    def _fire_assignment_verified(self, ams_id: int, tray_id: int, verified: bool, detail: dict) -> None:
+        if verified:
+            logger.info(
+                "[%s] Assignment verified: AMS%d-T%d now reports %s (kprofile_applied=%s)",
+                self.serial_number,
+                ams_id,
+                tray_id,
+                detail.get("tray_info_idx"),
+                detail.get("kprofile_applied"),
+            )
+        else:
+            logger.warning(
+                "[%s] Assignment NOT confirmed: AMS%d-T%d expected %s, tray shows %s (saw_tray=%s)",
+                self.serial_number,
+                ams_id,
+                tray_id,
+                detail.get("expected_tray_info_idx"),
+                detail.get("actual_tray_info_idx"),
+                detail.get("saw_tray"),
+            )
+        if self.on_assignment_verified:
+            try:
+                self.on_assignment_verified(ams_id, tray_id, verified, detail)
+            except Exception:
+                logger.exception("[%s] on_assignment_verified callback failed", self.serial_number)
 
     def _update_state(self, data: dict):
         """Update printer state from message data."""
