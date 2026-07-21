@@ -1217,11 +1217,14 @@ class ArchiveService:
             if match:
                 plate_number = int(match.group(1))
 
-        # Parse 3MF metadata
-        parser = ThreeMFParser(dest_file, plate_number=plate_number)
-        metadata = parser.parse()
+        # Parse 3MF metadata if source is 3MF
+        if dest_file.suffix.lower() == ".3mf" and zipfile.is_zipfile(dest_file):
+            parser = ThreeMFParser(dest_file, plate_number=plate_number)
+            metadata = parser.parse()
+        else:
+            metadata = {}
 
-        # Save thumbnail if present
+        # Save thumbnail if present from 3MF parser
         thumbnail_path = None
         if "_thumbnail_data" in metadata:
             thumb_file = archive_dir / f"thumbnail{metadata['_thumbnail_ext']}"
@@ -1229,6 +1232,19 @@ class ArchiveService:
             thumbnail_path = str(thumb_file.relative_to(settings.base_dir))
             del metadata["_thumbnail_data"]
             del metadata["_thumbnail_ext"]
+        elif dest_file.suffix.lower() == ".gcode":
+            # Extract thumbnail embedded in .gcode header comments (; thumbnail begin ... ; thumbnail end)
+            try:
+                from backend.app.api.routes.library import extract_gcode_thumbnail
+                gcode_thumb = extract_gcode_thumbnail(dest_file)
+                if gcode_thumb:
+                    thumb_file = archive_dir / "thumbnail.png"
+                    thumb_file.write_bytes(gcode_thumb)
+                    thumbnail_path = str(thumb_file.relative_to(settings.base_dir))
+                    logger.info("Extracted G-code embedded thumbnail for %s", dest_file.name)
+            except Exception as e:
+                logger.warning("Failed to extract G-code thumbnail for %s: %s", dest_file.name, e)
+
 
         # Merge with print data from MQTT
         if print_data:

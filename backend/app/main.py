@@ -2875,8 +2875,10 @@ async def on_print_start(printer_id: int, data: dict):
         possible_names = [x for x in possible_names if not (x in seen or seen.add(x))]
 
         from backend.app.services.elegoo_client import is_elegoo_model
-        if printer and is_elegoo_model(printer.model):
+        from backend.app.services.flashforge_client import is_flashforge_model
+        if printer and (is_elegoo_model(printer.model) or is_flashforge_model(printer.model)):
             possible_names = []
+
 
 
         logger.info("Trying filenames: %s", possible_names)
@@ -3853,8 +3855,12 @@ def _is_active_archive_stale(archive, state) -> tuple[bool, str]:
         return True, f"subtask_id changed ({archive.subtask_id!r} → {current_subtask_id!r})"
     current_subtask_name = (state.subtask_name or "").strip()
     if not current_subtask_name:
+        # During PREPARE / warming up, printer subtask_name may not be populated yet by firmware
+        if current_state == "PREPARE":
+            return False, ""
         return True, "printer subtask_name empty"
     return False, ""
+
 
 
 async def reconcile_stale_active_prints(printer_id: int) -> int:

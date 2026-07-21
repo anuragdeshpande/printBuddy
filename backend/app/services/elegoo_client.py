@@ -271,8 +271,9 @@ class ElegooCentauriClient:
                     self.on_print_complete({
                         "filename": self.state.current_print,
                         "subtask_name": self.state.subtask_name or self.state.current_print,
-                        "status": "success",
+                        "status": "completed",
                     })
+
 
 
             if state_str in ("IDLE", "FINISH", "FAILED"):

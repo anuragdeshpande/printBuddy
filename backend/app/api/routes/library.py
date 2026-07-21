@@ -540,10 +540,10 @@ async def save_3mf_bytes_to_library(
     return library_file, False
 
 
-def extract_gcode_thumbnail(file_path: Path) -> bytes | None:
-    """Extract embedded thumbnail from gcode file.
+def extract_gcode_thumbnail(file_path_or_data: Path | bytes | str) -> bytes | None:
+    """Extract embedded thumbnail from gcode file or raw bytes/text.
 
-    Supports PrusaSlicer/BambuStudio format:
+    Supports PrusaSlicer/BambuStudio/OrcaSlicer format:
     ; thumbnail begin WxH SIZE
     ; base64data...
     ; thumbnail end
@@ -554,9 +554,15 @@ def extract_gcode_thumbnail(file_path: Path) -> bytes | None:
         thumbnail_lines = []
         best_size = 0
 
-        with open(file_path, errors="ignore") as f:
-            # Only read first 50KB for performance (thumbnails are at the start)
-            content = f.read(50000)
+        if isinstance(file_path_or_data, bytes):
+            content = file_path_or_data[:50000].decode("utf-8", errors="ignore")
+        elif isinstance(file_path_or_data, str):
+            content = file_path_or_data[:50000]
+        else:
+            with open(file_path_or_data, errors="ignore") as f:
+                # Only read first 50KB for performance (thumbnails are at the start)
+                content = f.read(50000)
+
 
         for line in content.split("\n"):
             line = line.strip()
