@@ -433,20 +433,37 @@ class VirtualPrinterInstance:
             if mqtt_field in data:
                 patch[column] = bool(data[mqtt_field])
 
-        raw = data.get("nozzle_mapping")
-        if raw is not None:
-            if isinstance(raw, str):
+        raw_nozzle = data.get("nozzle_mapping")
+        if raw_nozzle is not None:
+            if isinstance(raw_nozzle, str):
                 try:
-                    raw = json.loads(raw)
+                    raw_nozzle = json.loads(raw_nozzle)
                 except json.JSONDecodeError:
                     logger.warning(
                         "[VP %s] Late MQTT nozzle_mapping is unparseable JSON, dropping: %r",
                         self.name,
-                        raw,
+                        raw_nozzle,
                     )
-                    raw = None
-            if raw is not None:
-                patch["nozzle_mapping"] = json.dumps(raw)
+                    raw_nozzle = None
+            if raw_nozzle is not None:
+                patch["nozzle_mapping"] = json.dumps(raw_nozzle)
+
+        raw_ams = data.get("ams_mapping")
+        if raw_ams is not None:
+            if isinstance(raw_ams, str):
+                try:
+                    raw_ams = json.loads(raw_ams)
+                except json.JSONDecodeError:
+                    logger.warning(
+                        "[VP %s] Late MQTT ams_mapping is unparseable JSON, dropping: %r",
+                        self.name,
+                        raw_ams,
+                    )
+                    raw_ams = None
+            if raw_ams is not None:
+                patch["ams_mapping"] = json.dumps(raw_ams)
+
+
 
         if not patch:
             self._recent_queue_items.pop(stash_key, None)
@@ -765,26 +782,38 @@ class VirtualPrinterInstance:
                 # — verified via wire capture on H2C — so only `nozzle_mapping`
                 # is forwarded now.)
                 nozzle_mapping_json: str | None = None
+                ams_mapping_json: str | None = None
                 if slicer_opts is not None:
-                    raw = slicer_opts.get("nozzle_mapping")
-                    if raw is not None:
-                        # BambuStudio's NetworkAgent embeds this as parsed
-                        # JSON in the project_file body (matching the
-                        # ams_mapping shape Bambuddy already consumes as
-                        # list[int]). Accept a JSON-encoded string defensively
-                        # in case any path arrives stringified.
-                        if isinstance(raw, str):
+                    raw_nozzle = slicer_opts.get("nozzle_mapping")
+                    if raw_nozzle is not None:
+                        if isinstance(raw_nozzle, str):
                             try:
-                                raw = json.loads(raw)
+                                raw_nozzle = json.loads(raw_nozzle)
                             except json.JSONDecodeError:
                                 logger.warning(
                                     "[VP %s] Slicer nozzle_mapping is unparseable JSON, dropping: %r",
                                     self.name,
-                                    raw,
+                                    raw_nozzle,
                                 )
-                                raw = None
-                        if raw is not None:
-                            nozzle_mapping_json = json.dumps(raw)
+                                raw_nozzle = None
+                        if raw_nozzle is not None:
+                            nozzle_mapping_json = json.dumps(raw_nozzle)
+
+                    raw_ams = slicer_opts.get("ams_mapping")
+                    if raw_ams is not None:
+                        if isinstance(raw_ams, str):
+                            try:
+                                raw_ams = json.loads(raw_ams)
+                            except json.JSONDecodeError:
+                                logger.warning(
+                                    "[VP %s] Slicer ams_mapping is unparseable JSON, dropping: %r",
+                                    self.name,
+                                    raw_ams,
+                                )
+                                raw_ams = None
+                        if raw_ams is not None:
+                            ams_mapping_json = json.dumps(raw_ams)
+
 
                 service = ArchiveService(db)
                 archive = await service.archive_print(
@@ -893,7 +922,9 @@ class VirtualPrinterInstance:
                             # the same nozzle pick across plates rather than only the
                             # first one (mirrors the #1697 / #1188 per-plate loop fix).
                             nozzle_mapping=nozzle_mapping_json,
+                            ams_mapping=ams_mapping_json,
                         )
+
                         db.add(queue_item)
                         await db.flush()  # populate queue_item.id before logging
                         queue_item_ids.append(queue_item.id)
