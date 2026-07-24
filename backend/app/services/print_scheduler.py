@@ -59,7 +59,7 @@ async def upload_elegoo_file_async(
     import uuid as _uuid
     import httpx
 
-    MAX_CHUNK = 1024 * 1024  # 1 MB per chunk
+    MAX_CHUNK = 2 * 1024 * 1024  # 2 MB per chunk for faster throughput
 
     try:
         data = local_path.read_bytes()
@@ -69,7 +69,9 @@ async def upload_elegoo_file_async(
         url = f"http://{ip_address}/uploadFile/upload"
 
         num_chunks = max(1, (file_size + MAX_CHUNK - 1) // MAX_CHUNK)
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        # Use HTTP/1.1 connection pool with keep-alive limits for fast chunk pipelining
+        limits = httpx.Limits(max_keepalive_connections=5, max_connections=10)
+        async with httpx.AsyncClient(timeout=30.0, limits=limits) as client:
             for i in range(num_chunks):
                 offset = i * MAX_CHUNK
                 chunk = data[offset: offset + MAX_CHUNK]
@@ -90,7 +92,7 @@ async def upload_elegoo_file_async(
                                 "Elegoo upload chunk %d/%d to %s OK", i + 1, num_chunks, ip_address
                             )
                             if progress_callback:
-                                uploaded = min(offset + MAX_CHUNK, file_size)
+                                uploaded = min(offset + len(chunk), file_size)
                                 try:
                                     progress_callback(uploaded, file_size)
                                 except Exception:
@@ -113,10 +115,9 @@ async def upload_elegoo_file_async(
                         "Elegoo upload chunk %d/%d: HTTP %d from printer",
                         i + 1, num_chunks, res.status_code
                     )
-                    return False
-
         logger.info("Elegoo HTTP upload of %s to %s succeeded (%d bytes)", remote_filename, ip_address, file_size)
         return True
+
 
     except Exception as e:
         logger.warning("Elegoo chunked upload to %s failed: %s", ip_address, e)
