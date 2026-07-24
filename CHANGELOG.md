@@ -2,7 +2,7 @@
 
 All notable changes to Bambuddy will be documented in this file.
 
-## [1.2.5b2] - Unreleased
+## [1.2.5] - 2026-07-24
 
 ### Added
 - **Skip Objects can now be selected directly on the top-down build plate** — The skip dialog pairs the plate preview with the slicer's exact per-object pick mask, so clicking a model selects the same object id the printer firmware expects. Multiple objects can be selected before one confirmation, selected and already-skipped items are highlighted on the plate, and the checklist remains available when a pick mask is missing. Selecting every remaining object keeps the printer's existing stop-print warning, and the dialog closes once the skip is confirmed. Confirming names the object when one is selected and counts them when several are, which is what plates of identically-named clones need. The existing layer, permission, and printer-command guards are unchanged.
